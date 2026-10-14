@@ -1,0 +1,13 @@
+[project]
+name = "ycsp-compute"
+version = "0.1.0"
+description = "数据处理层：按化学组成预测晶体结构的计算服务"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+]
+
+[tool.uv]
+# 本项目是应用而非库，只同步依赖，不需要把自身打包安装。
+package = false

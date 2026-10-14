@@ -35,12 +35,12 @@
 
 ## 全局约定（动手前先定，避免返工）
 
-- [ ] **G0.1 确认三层目录命名**：前端 / 数据管理 / 数据处理各自的目录名（暂拟 `frontend/`、`backend/`、`compute/`，**待确认**）
-- [ ] **G0.2 确认数据库**：GORM 连接哪种数据库（SQLite 适合起步、PostgreSQL / MySQL 适合正式部署）
+- [x] **G0.1 确认三层目录命名**：已按暂拟名 `frontend/`、`backend/`、`compute/` 落地；若要改名，需同步各 README 与根 README 导航
+- [ ] **G0.2 确认数据库**：GORM 连接哪种数据库（SQLite 适合起步、PostgreSQL / MySQL 适合正式部署）——留到阶段 2 决定
 - [ ] **G0.3 确认 CSP 教学范围**：学生在网页上到底要完成哪几件事（见文末《待确认事项》Q3，这是最大变量）
-- [ ] **G0.4 定义层间接口**：三层之间统一用 JSON；先定死字段命名、数值单位、错误码
-- [ ] **G0.5 定义命名与代码规范**：与 `AGENTS.md` 一致（完整单词命名、面向用户文案全中文、术语首次出现给通俗解释）
-- [ ] **G0.6 定义三层启动方式**：每层怎么装依赖、怎么启动，写进各自目录的 `README.md`
+- [~] **G0.4 定义层间接口**：已定「统一 JSON + 出错必带中文 message + 端口 8000/8001/5173」；字段命名与错误码待阶段 2 细化
+- [x] **G0.5 定义命名与代码规范**：已按 `AGENTS.md` 执行（完整单词命名、面向用户文案全中文、术语首次出现给通俗解释）
+- [x] **G0.6 定义三层启动方式**：已在各目录 `README.md` 与根 README《安装与启动》写明
 
 > 下列阶段中子任务里出现的目录名（`frontend/`、`backend/`、`compute/`）均为**暂拟**，以 G0.1 确认结果为准。
 
@@ -50,13 +50,13 @@
 
 **验收标准**：在浏览器点一下，能收到来自 Python 层返回的一句中文（证明 Vue → Go → Python 链路通畅）。
 
-- [ ] **0.1** 前端：建 Vue + TypeScript 最小项目，页面显示一句招呼语，并创建 `frontend/README.md`
-- [ ] **0.2** 数据管理：建 Go + Gin 项目，提供 `GET /api/health` 返回服务状态，并创建 `backend/README.md`
-- [ ] **0.3** 数据处理：建 Python + FastAPI 项目，提供 `GET /health` 返回服务状态，并创建 `compute/README.md`
-- [ ] **0.4** 数据管理：新增 `GET /api/ping-compute`，由 Go 转发请求到 Python 层
-- [ ] **0.5** 前端：按钮调用 `/api/ping-compute`，在页面上展示返回文字
-- [ ] **0.6** 回填根 `README.md` 的《安装与启动》《目录导航》两节
-- [ ] **0.7** 给三层各写一条启动命令（脚本或文档），做到“一条命令起服务”
+- [x] **0.1** 前端：Vue 3 + TypeScript + Vite 最小项目，页面含“打招呼”按钮，已建 `frontend/README.md`
+- [x] **0.2** 数据管理：Go + Gin 项目，`GET /api/health` 返回服务状态，已建 `backend/README.md`
+- [x] **0.3** 数据处理：Python + FastAPI 项目，`GET /health` 返回服务状态，已建 `compute/README.md`
+- [x] **0.4** 数据管理：`GET /api/ping-compute`，由 Go 转发请求到 Python 层
+- [x] **0.5** 前端：按钮调用 `/api/ping-compute`，在页面上展示返回文字
+- [x] **0.6** 回填根 `README.md` 的《安装与启动》《目录导航》两节
+- [x] **0.7** 三层各有一条启动命令，写到各自 `README.md`
 
 ## 阶段 1：数据处理层（Python + FastAPI + NumPy）
 
@@ -141,3 +141,6 @@
 | 日期 | 阶段 | 完成内容 | 备注 |
 | --- | --- | --- | --- |
 | 2026-10-13 | — | 建立本计划文件 | 待确认 Q1~Q5 |
+| 2026-10-13 | 0 | 搭建三层骨架（Vue / Go / Python）并打通 `/api/ping-compute` | 已实测：`compute /health` ✓、`backend /api/health` ✓、经 Vite 代理的 `/api/ping-compute` ✓（HTTP 200）。目录名沿用暂拟名 |
+| 2026-10-13 | — | 补 4 个代码子目录的 README；`AGENTS.md` 新增“父 README 不复制子模块文档、只登记一行导航”的规则 | 应作者要求：减少重复、节省 token |
+| 2026-10-14 | — | 精简文档与代码注释（按新 `AGENTS.md` 标准）；数据处理层改用 uv 管理依赖（`pyproject.toml` + `uv.lock` 取代 `requirements.txt`） | 顺带修掉 `vue-tsc` 与 TypeScript 7 不兼容（`typescript` 固定 `^5.9.3`） |
