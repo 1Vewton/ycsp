@@ -12,10 +12,10 @@
 
 ## 如何运行
 
-依赖用 [uv](https://docs.astral.sh/uv/) 管理：版本已锁在 `uv.lock` 里，首次运行会自动建好 `.venv`。
+依赖用 [uv](https://docs.astral.sh/uv/) 管理（版本锁在 `uv.lock`，首次运行自动建好 `.venv`）。
 
 ```powershell
 uv run python -m app.main
 ```
 
-启动后访问 <http://127.0.0.1:8001/health>。
+默认监听 `127.0.0.1:8001`；要改的话，复制 `.env.example` 为 `.env` 再编辑。启动后访问 <http://127.0.0.1:8001/health>。

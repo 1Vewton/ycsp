@@ -9,12 +9,17 @@
 | GET | `/api/health` | 本层健康检查 |
 | GET | `/api/ping-compute` | 转发到数据处理层 `/health` |
 
+应答统一为 `{ service, status, code, params? }`，成功时另有 `compute`。`code` 是语言无关的状态码（见 `internal/api/codes.go`），面向用户的文案由前端按当前语言翻译。
+
 ## 配置
 
-| 环境变量 | 默认值 |
-| --- | --- |
-| `YCSP_BACKEND_PORT` | `8000` |
-| `YCSP_COMPUTE_BASE_URL` | `http://127.0.0.1:8001` |
+配置来自 `backend/.env`（可选：不提供就用默认值；要改就把 `.env.example` 复制为 `.env`）：
+
+| 变量 | 默认值 | 含义 |
+| --- | --- | --- |
+| `YCSP_BACKEND_HOST` | `127.0.0.1` | 本层监听地址 |
+| `YCSP_BACKEND_PORT` | `8000` | 本层监听端口 |
+| `YCSP_COMPUTE_BASE_URL` | `http://127.0.0.1:8001` | 数据处理层地址 |
 
 ## 如何运行
 

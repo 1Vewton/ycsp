@@ -7,3 +7,4 @@
 | `router.go` | 注册路由 |
 | `health.go` | `GET /api/health` |
 | `compute_proxy.go` | `GET /api/ping-compute`，转发到数据处理层（超时 5 秒） |
+| `codes.go` | 接口状态码常量（语言无关，文案由前端按语言翻译） |

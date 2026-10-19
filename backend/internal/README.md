@@ -5,3 +5,4 @@
 | 子目录 | 作用 |
 | --- | --- |
 | `api/` | HTTP 接口层，见 [api/README.md](./api/README.md) |
+| `env/` | 环境变量读取（带默认值），见 [env/README.md](./env/README.md) |

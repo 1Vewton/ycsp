@@ -1,31 +1,39 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-interface BackendPingResponse {
+import { translate } from './messages'
+
+// 后端应答统一为 { service, status, code, params? }（见 backend/README.md）。
+interface BackendResponse {
   service: string
   status: string
-  message: string
+  code: string
+  params?: Record<string, unknown>
 }
 
-const greetingFromCompute = ref('')
+const greeting = ref('')
 const errorMessage = ref('')
 const isLoading = ref(false)
 
-// 点击按钮走“前端 → 数据管理 → 数据处理”，把后端返回的中文提示显示出来。
+// 点击按钮走“前端 → 数据管理 → 数据处理”，再把后端返回的 code 翻成当前语言显示。
 async function pingComputeLayer(): Promise<void> {
   isLoading.value = true
-  greetingFromCompute.value = ''
+  greeting.value = ''
   errorMessage.value = ''
 
   try {
     const response = await fetch('/api/ping-compute')
-    if (!response.ok) {
-      throw new Error(`后端返回了状态码 ${response.status}`)
+    const payload = (await response.json()) as BackendResponse
+    const text = translate(payload.code, payload.params)
+    if (response.ok && payload.status === 'ok') {
+      greeting.value = text
+    } else {
+      errorMessage.value = text
     }
-    const payload = (await response.json()) as BackendPingResponse
-    greetingFromCompute.value = payload.message
   } catch (error) {
-    errorMessage.value = `暂时联系不上后端：${(error as Error).message}。请确认数据管理层与数据处理层都已启动。`
+    // 技术细节只打印到控制台，界面上只显示用户看得懂的一句话。
+    console.error(error)
+    errorMessage.value = translate('request_failed')
   } finally {
     isLoading.value = false
   }
@@ -34,19 +42,15 @@ async function pingComputeLayer(): Promise<void> {
 
 <template>
   <main class="page">
-    <h1 class="page-title">ycsp 晶体结构预测教学平台</h1>
-    <p class="page-intro">
-      这是阶段 0 的骨架页面，用来检查「前端 → 数据管理 → 数据处理」三层是否连通。
-    </p>
+    <h1 class="page-title">{{ translate('page_title') }}</h1>
+    <p class="page-intro">{{ translate('page_intro') }}</p>
 
     <button class="ping-button" :disabled="isLoading" @click="pingComputeLayer">
-      {{ isLoading ? '正在联系……' : '和数据处理层打个招呼' }}
+      {{ isLoading ? translate('ping_button_busy') : translate('ping_button_idle') }}
     </button>
 
-    <p v-if="isLoading" class="hint">正在等待后端应答，请稍候……</p>
-    <p v-if="greetingFromCompute" class="success" role="status">
-      {{ greetingFromCompute }}
-    </p>
+    <p v-if="isLoading" class="hint">{{ translate('ping_waiting') }}</p>
+    <p v-if="greeting" class="success" role="status">{{ greeting }}</p>
     <p v-if="errorMessage" class="error" role="alert">{{ errorMessage }}</p>
   </main>
 </template>

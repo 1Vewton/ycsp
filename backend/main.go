@@ -1,34 +1,57 @@
-// 数据管理层（Go + Gin）入口：对外提供统一接口，并把计算请求转发给数据处理层。
+// 数据管理层（Go + Gin）入口：读取配置并启动服务。
 package main
 
 import (
+	"fmt"
 	"log"
-	"os"
 
 	"github.com/1Vewton/ycsp/backend/internal/api"
+	"github.com/1Vewton/ycsp/backend/internal/env"
 )
 
+// .env 未提供对应项时使用的默认值。
 const (
-	defaultListenPort     = "8000"
+	defaultListenHost     = "127.0.0.1"
+	defaultListenPort     = 8000
 	defaultComputeBaseURL = "http://127.0.0.1:8001"
+
+	envFilePath = ".env"
 )
+
+// appSettings 是数据管理层的运行配置。
+type appSettings struct {
+	listenHost     string
+	listenPort     int
+	computeBaseURL string
+}
 
 func main() {
-	listenPort := getEnvOrDefault("YCSP_BACKEND_PORT", defaultListenPort)
-	computeBaseURL := getEnvOrDefault("YCSP_COMPUTE_BASE_URL", defaultComputeBaseURL)
+	env.Load(envFilePath)
 
-	router := api.NewRouter(computeBaseURL)
+	settings, err := readSettings()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	log.Printf("%s 已启动：http://127.0.0.1:%s", api.ServiceName, listenPort)
-	if err := router.Run("127.0.0.1:" + listenPort); err != nil {
-		log.Fatalf("%s 启动失败：%v", api.ServiceName, err)
+	router := api.NewRouter(settings.computeBaseURL)
+
+	address := fmt.Sprintf("%s:%d", settings.listenHost, settings.listenPort)
+	log.Printf("%s listening on http://%s", api.ServiceName, address)
+	if err := router.Run(address); err != nil {
+		log.Fatalf("%s failed to start: %v", api.ServiceName, err)
 	}
 }
 
-// getEnvOrDefault 读环境变量；未设置或为空时返回 fallback。
-func getEnvOrDefault(key string, fallback string) string {
-	if value, isSet := os.LookupEnv(key); isSet && value != "" {
-		return value
+// readSettings 读取运行配置，缺项时用默认值。
+func readSettings() (appSettings, error) {
+	listenPort, err := env.GetInt("YCSP_BACKEND_PORT", defaultListenPort)
+	if err != nil {
+		return appSettings{}, err
 	}
-	return fallback
+
+	return appSettings{
+		listenHost:     env.Get("YCSP_BACKEND_HOST", defaultListenHost),
+		listenPort:     listenPort,
+		computeBaseURL: env.Get("YCSP_COMPUTE_BASE_URL", defaultComputeBaseURL),
+	}, nil
 }
