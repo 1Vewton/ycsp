@@ -7,11 +7,19 @@
 from dataclasses import dataclass, field
 from math import isfinite
 
+# 1 Å = 100 pm；元素数据用皮米记录，晶胞用埃，换算集中在这一处。
+PICOMETERS_PER_ANGSTROM = 100.0
+
 # 三维空间中一个点由 3 个坐标分量描述（x, y, z）。
 COORDINATE_COMPONENT_COUNT = 3
 # 晶胞夹角必须严格介于 0° 与 180° 之间，否则晶胞退化或自交。
 MIN_ANGLE_DEGREE = 0.0
 MAX_ANGLE_DEGREE = 180.0
+
+
+def angstrom_from_picometers(length_picometers: float) -> float:
+    """把皮米换算成埃（元素数据用 pm 记录，晶胞参数用 Å）。"""
+    return length_picometers / PICOMETERS_PER_ANGSTROM
 
 
 @dataclass(frozen=True)

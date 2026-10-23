@@ -36,8 +36,8 @@
 ## 全局约定（动手前先定，避免返工）
 
 - [x] **G0.1 确认三层目录命名**：已按暂拟名 `frontend/`、`backend/`、`compute/` 落地；若要改名，需同步各 README 与根 README 导航
-- [ ] **G0.2 确认数据库**：GORM 连接哪种数据库（SQLite 适合起步、PostgreSQL / MySQL 适合正式部署）——留到阶段 2 决定
-- [ ] **G0.3 确认 CSP 教学范围**：学生在网页上到底要完成哪几件事（见文末《待确认事项》Q3，这是最大变量）
+- [x] **G0.2 确认数据库**：已定——连接层可切换（`YCSP_DB_DRIVER` / `YCSP_DB_DSN`），当前默认 SQLite（纯 Go 驱动，零安装），正式部署时再定库
+- [x] **G0.3 确认 CSP 教学范围**：已定——离子晶体（半径比规则）+ 金属晶体（实验结构表）+ 金刚石型共价晶体，详见 `compute/README.md`《算法思路》
 - [x] **G0.4 定义层间接口**：统一 JSON；应答为 `{ service, status, code, params? }`，后端只给语言无关的 `code`，文案由前端按语言翻译；端口 8000/8001/5173
 - [x] **G0.5 定义命名与代码规范**：已按 `AGENTS.md` 执行（完整单词命名、面向用户文案全中文、术语首次出现给通俗解释）
 - [x] **G0.6 定义三层启动方式**：已在各目录 `README.md` 与根 README《安装与启动》写明
@@ -64,16 +64,16 @@
 
 **验收标准**：给定课本里的经典例子（如 NaCl），程序输出的结构与课本一致，并有单元测试证明。
 
-- [x] **1.1** 定义内部数据结构：原子、元素、晶胞（`app/structure.py`，字段注明物理量与单位）
-- [ ] **1.2** 内置常见元素数据：离子半径、电负性等（注明数据来源与单位）
-- [ ] **1.3** 实现最小教学算法 v1（**算法选型待确认** Q3），能对给定化学成分给出候选结构
-- [ ] **1.4** 用 3~5 个课本经典例子写单元测试（如 NaCl、CsCl、金刚石）
-- [ ] **1.5** 结果后处理：把晶胞转成“原子坐标 + 元素类型”列表，方便前端画图
-- [ ] **1.6** 包成 FastAPI 接口 `POST /predict`，返回结构数据与可视化数据
-- [ ] **1.7** 长耗时处理：支持进度回报与取消入口
-- [ ] **1.8** 错误处理：把计算异常转成中学生能看懂的中文错误
-- [ ] **1.9** 写 `compute/README.md`：职责、输入输出、算法思路、使用示例、已知限制
-- [ ] **1.10** 教学对齐：注释与文档说明每个公式/步骤**对应课本哪个概念**
+- [x] **1.1** 定义内部数据结构：原子、元素、晶胞（`app/domain/structure.py`，字段注明物理量与单位）
+- [x] **1.2** 内置常见元素数据：离子半径、电负性等（`app/domain/elements.py`，注明数据来源与单位）
+- [x] **1.3** 实现最小教学算法 v1：离子晶体用 Pauling 半径比规则（4/6/8 配位）与萤石型，金属按实验结构表，C/Si/Ge 与 SiC 用金刚石型 / 闪锌矿型（`app/domain/prediction.py`、`prototypes.py`、`composition.py`）
+- [x] **1.4** 用课本经典例子写单元测试：NaCl / CsCl / CaF₂ / ZnS / 金刚石 / SiC / Cu / Fe / Mg（`compute/tests/`，`uv run pytest`）
+- [x] **1.5** 结果后处理：`app/api/serialization.py` 把晶胞转成“元素符号 + 分数坐标”列表，前端可直接画图
+- [x] **1.6** 包成 FastAPI 接口 `POST /predict`，返回结构数据与可直接画图的原子列表
+- [x] **1.7** 长耗时处理：本阶段计算是纯算术（毫秒级），不需要进度与取消入口，已在 `compute/README.md`《已知限制》写明
+- [x] **1.8** 错误处理：计算与框架异常都转成语言无关的 `code` + `params`，文案由前端翻译（`app/constants/codes.py`、`app/api/errors.py`）
+- [x] **1.9** 写 `compute/README.md`：职责、接口、算法思路、使用示例、已知限制
+- [x] **1.10** 教学对齐：半径比规则、硬球相切模型、萤石型等概念在注释与 README 中点明对应课本概念
 
 ## 阶段 2：数据管理层（Go + Gin + GORM）
 
@@ -81,10 +81,10 @@
 
 **验收标准**：能创建一次“预测任务”、存进数据库、再查回来，且状态正确。
 
-- [ ] **2.1** 设计数据库表：用户、任务、结构结果（字段与关系画清楚，落到文字）
-- [ ] **2.2** 用 GORM 写模型并做自动迁移
-- [ ] **2.3** 实现任务接口：创建任务、查询状态、获取结果、取消任务
-- [ ] **2.4** 对接数据处理层：把任务参数发给 Python，接收结果并落库
+- [x] **2.1** 设计数据库表：用户、任务、结构结果（字段、约束、状态机与关系已落到 `backend/README.md`《数据表》）
+- [x] **2.2** 用 GORM 写模型并做自动迁移（`internal/store/`：三张表模型、引擎可切换的连接层、可重复执行的 `Migrate`）
+- [x] **2.3** 实现任务接口：创建任务、查询状态、获取结果、取消任务（`POST /api/tasks` 等四个；异步执行、前端轮询）
+- [x] **2.4** 对接数据处理层：把任务参数发给 Python，接收结果并落库（`internal/compute` 客户端 + `internal/tasks` worker）
 - [ ] **2.5** 统一错误码表：后端只定义 `code` + `params`，文案翻译放在前端
 - [ ] **2.6** 输出接口文档，并登记到 `backend/README.md`
 - [ ] **2.7** 写 `backend/README.md`：职责、对外接口、数据表、示例、限制
@@ -133,7 +133,7 @@
 | --- | --- | --- | --- |
 | Q1 | 三层目录到底叫什么名字？ | 定不下来没法建目录、没法写导航 | G0.1、阶段 0 |
 | Q2 | 数据库用哪个？ | 影响 GORM 配置与部署方式 | G0.2、2.1 |
-| Q3 | CSP 教学覆盖哪些内容、学生做什么？ | 决定算法与界面，是最大变量 | G0.3、1.3、阶段 3 |
+| Q3 | CSP 教学覆盖哪些内容、学生做什么？（已定：离子 + 金属 + 金刚石型共价，见《进度记录》2026-10-20） | 决定算法与界面，是最大变量 | G0.3、1.3、阶段 3 |
 | Q4 | 晶体结构怎么可视化、用什么库？ | 直接影响前端工作量 | 3.4 |
 | Q5 | 部署到哪里（本地 / 服务器 / 校园网）？ | 影响阶段 5 的做法 | 5.5 |
 
@@ -145,7 +145,18 @@
 | 2026-10-13 | 0 | 搭建三层骨架（Vue / Go / Python）并打通 `/api/ping-compute` | 已实测：`compute /health` ✓、`backend /api/health` ✓、经 Vite 代理的 `/api/ping-compute` ✓（HTTP 200）。目录名沿用暂拟名 |
 | 2026-10-13 | — | 补 4 个代码子目录的 README；`AGENTS.md` 新增“父 README 不复制子模块文档、只登记一行导航”的规则 | 应作者要求：减少重复、节省 token |
 | 2026-10-14 | — | 精简文档与代码注释（按新 `AGENTS.md` 标准）；数据处理层改用 uv 管理依赖（`pyproject.toml` + `uv.lock` 取代 `requirements.txt`） | 顺带修掉 `vue-tsc` 与 TypeScript 7 不兼容（`typescript` 固定 `^5.9.3`） |
-| 2026-10-14 | 1 | 完成 1.1：数据处理层内部数据结构 `compute/app/structure.py`（Element / Atom / UnitCell） | 长度 Å、角度 °；含基本合法性校验；按多语言规则不放展示文案 |
+| 2026-10-14 | 1 | 完成 1.1：数据处理层内部数据结构 `compute/app/domain/structure.py`（Element / Atom / UnitCell） | 长度 Å、角度 °；含基本合法性校验；按多语言规则不放展示文案 |
 | 2026-10-16 | — | 去掉后端中文硬编码：应答改为 `{ service, status, code, params? }`（`backend/internal/api/codes.go`）；前端按 `code` 显示，文案抽到 `frontend/src/messages.ts` | 中/英文案已备齐；语言切换留到阶段 3 |
 | 2026-10-17 | — | 三层网络配置外置到 `.env`（各层 `/.env.example` + `.env`），并各有一个带默认值的 env 管理器（`compute/app/env`、`backend/internal/env`、`frontend/env.ts`） | 服务名、状态码等协议常量仍留在代码里 |
 | 2026-10-17 | — | 新增 GitHub Actions CI（`.github/workflows/ci.yml`）：三层并行检查（uv 依赖与导入 / Go 格式与构建 / 前端类型检查与构建） | 说明见 `.github/README.md`，并登记到根 README 导航 |
+| 2026-10-19 | 1 | 完成 1.2：`app/domain/elements.py` 内置 19 个常见元素（Pauling 电负性）与 13 个常见离子半径 | 离子半径取 Shannon 1976 有效值、配位数 6；含 `KeyError` 提示 |
+| 2026-10-20 | 1 | 确定教学范围（Q3/G0.3）：离子晶体 + 金属晶体 + 金刚石型共价晶体一起做；金属结构型按经验表（用户选 A） | 理由：三类共用一套“判类型 → 选原型 → 算晶胞”管线，比各做一套省成本 |
+| 2026-10-20 | 1 | 完成 1.3 / 1.5 / 1.6：`composition.py`、`prototypes.py`、`prediction.py` + `POST /predict` | 覆盖 NaCl/CsCl/ZnS/萤石（含反萤石）、fcc/bcc/hcp、金刚石/SiC；元素数据扩到 31 个，补共价半径与金属半径 |
+| 2026-10-20 | 1 | 完成 1.4：`compute/tests/` 四个测试文件、56 个用例（课本经典例子 + 数据一致性 + 接口契约） | `uv run pytest` 全绿；dev 依赖 pytest/httpx，`uv.lock` 已更新；CI 增加测试步骤 |
+| 2026-10-20 | 1 | 完成 1.8 / 1.9 / 1.10：错误全部走 `code` + `params`；README 写明接口、算法与已知限制；前端补齐中/英文案 | KCl 等规则判错的经典化合物改用实验数据，并在结果里说明差异 |
+| 2026-10-20 | 1 | 重构：数据与常数拆到 `app/constants/`（`elements` / `structures` / `prediction_rules` / `codes`），`app/domain/` 只留类型与规则 | 常数包不依赖 domain/api，`tests/test_constants.py` 守住这条线；57 个用例全绿 |
+| 2026-10-20 | 1 | 补测：新增 `test_structure` / `test_prototypes` / `test_serialization` / `test_env` / `test_api_errors`，用例 57 → 122，覆盖率 99% | 引入 pytest-cov；CI 以 `--cov-fail-under=90` 兜底 |
+| 2026-10-20 | 2 | 完成 2.1：设计 `users` / `prediction_tasks` / `structure_results` 三张表，含状态机与接口对应关系，写入 `backend/README.md`《数据表》 | 待定：数据库引擎（G0.2）、是否引入账号体系 |
+| 2026-10-21 | 2 | 完成 2.2：`internal/store/` 三张表模型 + `Open`（sqlite / postgres / mysql 可切换）+ `Migrate`，启动时自动建表 | 9 个 Go 测试覆盖迁移、存取、级联删除与配置校验；默认 SQLite 文件 `ycsp.db` |
+| 2026-10-21 | 2 | 补 Go 测试：`api`（7，含假数据处理层的五种应答）、`env`（7）、`main` 配置解析（4）、`store`（13） | 共 31 个测试函数；覆盖率 api/env 100%、store 92.9%、main 29.6%（仅启动入口未测）；CI 改为 `go test -cover ./...` |
+| 2026-10-21 | 2 | 完成 2.3 + 2.4：任务接口（创建 / 查询 / 结果 / 取消）+ 异步 worker + 数据处理层客户端，结果与错误按 code 落库 | 端到端实测：`CaF2` → pending → succeeded（133 ms）→ fluorite 5.381 Å / 12 原子；`H2O` → failed（`composition_not_supported`） |

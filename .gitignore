@@ -31,6 +31,12 @@ dist/
 *.out
 /backend/bin/
 
+# 本地数据库（backend 默认用 SQLite 文件）
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
 # 前端（frontend）
 node_modules/
 dist-ssr/

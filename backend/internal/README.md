@@ -5,4 +5,8 @@
 | 子目录 | 作用 |
 | --- | --- |
 | `api/` | HTTP 接口层，见 [api/README.md](./api/README.md) |
+| `codes/` | 状态码（语言无关，文案由前端翻译），见 [codes/README.md](./codes/README.md) |
+| `compute/` | 数据处理层客户端，见 [compute/README.md](./compute/README.md) |
+| `store/` | 数据库连接、GORM 模型与迁移，见 [store/README.md](./store/README.md) |
+| `tasks/` | 任务排队与执行（异步），见 [tasks/README.md](./tasks/README.md) |
 | `env/` | 环境变量读取（带默认值），见 [env/README.md](./env/README.md) |

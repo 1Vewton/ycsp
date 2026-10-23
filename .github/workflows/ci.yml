@@ -2,6 +2,7 @@ name: CI
 
 # 每次 push / PR 都检查三层能否装依赖、过格式检查、编译或构建。
 # CI 环境没有 .env，因此各层都走代码里的默认值（见各层 README 的配置说明）。
+# action 版本固定到具体 release：浮动大版本 tag 并非都存在（例如 setup-uv 只发布了 v10.3.0）。
 on:
   push:
     branches: [main, master]
@@ -21,10 +22,10 @@ jobs:
       run:
         working-directory: compute
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@v10.3.0
         with:
           enable-cache: true
 
@@ -34,6 +35,9 @@ jobs:
       - name: Import check
         run: uv run python -c "import app.main"
 
+      - name: Test with coverage
+        run: uv run pytest --cov=app --cov-report=term-missing --cov-fail-under=90
+
   backend:
     name: backend (Go)
     runs-on: ubuntu-latest
@@ -41,10 +45,10 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@v7.0.0
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
@@ -65,7 +69,7 @@ jobs:
         run: go build ./...
 
       - name: Test
-        run: go test ./...
+        run: go test -cover ./...
 
   frontend:
     name: frontend (Node)
@@ -74,10 +78,10 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Set up Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v7.1.0
         with:
           node-version: 22
           cache: npm
