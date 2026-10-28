@@ -1,120 +1,137 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { watchEffect } from 'vue'
+import { RouterLink, RouterView } from 'vue-router'
 
-import { translate } from './messages'
+import { faCubes } from '@fortawesome/free-solid-svg-icons/faCubes'
+import { faFlask } from '@fortawesome/free-solid-svg-icons/faFlask'
+import { faHouse } from '@fortawesome/free-solid-svg-icons/faHouse'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
-// 后端应答统一为 { service, status, code, params? }（见 backend/README.md）。
-interface BackendResponse {
-  service: string
-  status: string
-  code: string
-  params?: Record<string, unknown>
-}
+import { AVAILABLE_LOCALES, currentLocale, LOCALE_NAMES, setLocale, t } from './locales'
 
-const greeting = ref('')
-const errorMessage = ref('')
-const isLoading = ref(false)
-
-// 点击按钮走“前端 → 数据管理 → 数据处理”，再把后端返回的 code 翻成当前语言显示。
-async function pingComputeLayer(): Promise<void> {
-  isLoading.value = true
-  greeting.value = ''
-  errorMessage.value = ''
-
-  try {
-    const response = await fetch('/api/ping-compute')
-    const payload = (await response.json()) as BackendResponse
-    const text = translate(payload.code, payload.params)
-    if (response.ok && payload.status === 'ok') {
-      greeting.value = text
-    } else {
-      errorMessage.value = text
-    }
-  } catch (error) {
-    // 技术细节只打印到控制台，界面上只显示用户看得懂的一句话。
-    console.error(error)
-    errorMessage.value = translate('request_failed')
-  } finally {
-    isLoading.value = false
-  }
-}
+// 浏览器标签页标题跟随界面语言。
+watchEffect(() => {
+  document.title = t('page_title')
+})
 </script>
 
 <template>
-  <main class="page">
-    <h1 class="page-title">{{ translate('page_title') }}</h1>
-    <p class="page-intro">{{ translate('page_intro') }}</p>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header-inner">
+        <RouterLink class="app-brand" to="/">
+          <FontAwesomeIcon :icon="faCubes" aria-hidden="true" />
+          <span>{{ t('page_title') }}</span>
+        </RouterLink>
 
-    <button class="ping-button" :disabled="isLoading" @click="pingComputeLayer">
-      {{ isLoading ? translate('ping_button_busy') : translate('ping_button_idle') }}
-    </button>
+        <nav class="app-nav" :aria-label="t('main_navigation_label')">
+          <RouterLink class="nav-link" to="/">
+            <FontAwesomeIcon :icon="faHouse" aria-hidden="true" />
+            <span>{{ t('nav_home') }}</span>
+          </RouterLink>
+          <RouterLink class="nav-link" to="/predict">
+            <FontAwesomeIcon :icon="faFlask" aria-hidden="true" />
+            <span>{{ t('nav_predict') }}</span>
+          </RouterLink>
+        </nav>
 
-    <p v-if="isLoading" class="hint">{{ translate('ping_waiting') }}</p>
-    <p v-if="greeting" class="success" role="status">{{ greeting }}</p>
-    <p v-if="errorMessage" class="error" role="alert">{{ errorMessage }}</p>
-  </main>
+        <div class="locale-switcher" role="group" :aria-label="t('language_switcher_label')">
+          <button
+            v-for="locale in AVAILABLE_LOCALES"
+            :key="locale"
+            type="button"
+            class="locale-button"
+            :class="{ 'locale-button-active': currentLocale === locale }"
+            :aria-pressed="currentLocale === locale"
+            @click="setLocale(locale)"
+          >
+            {{ LOCALE_NAMES[locale] }}
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <RouterView />
+    </main>
+  </div>
 </template>
 
 <style scoped>
-.page {
-  max-width: 42rem;
-  margin: 4rem auto;
-  padding: 0 1.5rem;
-  font-family: 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
-  color: #1f2933;
+.app-header {
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-divider);
 }
 
-.page-title {
-  margin-bottom: 0.5rem;
-  font-size: 1.6rem;
-  color: #0b5d8a;
+.app-header-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: 0.9rem 1.5rem;
 }
 
-.page-intro {
-  margin-top: 0;
-  line-height: 1.7;
-  color: #52606d;
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-decoration: none;
 }
 
-.ping-button {
-  margin-top: 1.5rem;
-  padding: 0.7rem 1.4rem;
-  font-size: 1rem;
-  color: #ffffff;
-  background-color: #0b5d8a;
-  border: none;
-  border-radius: 0.5rem;
+.app-nav {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  border-radius: var(--radius-small);
+}
+
+.nav-link:hover,
+.nav-link.router-link-active {
+  color: var(--color-primary);
+  background-color: var(--color-primary-soft);
+}
+
+.nav-link.router-link-active {
+  font-weight: 600;
+}
+
+.locale-switcher {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.locale-button {
+  padding: 0.3rem 0.75rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  color: var(--color-primary);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
   cursor: pointer;
-  transition: background-color 0.2s;
 }
 
-.ping-button:hover:not(:disabled) {
-  background-color: #094a6e;
+.locale-button:hover {
+  background-color: var(--color-primary-soft);
 }
 
-.ping-button:disabled {
-  background-color: #9aa5b1;
-  cursor: progress;
-}
-
-.hint {
-  margin-top: 1rem;
-  color: #52606d;
-}
-
-.success {
-  margin-top: 1rem;
-  padding: 0.75rem 1rem;
-  color: #014d40;
-  background-color: #e3f9e5;
-  border-radius: 0.5rem;
-}
-
-.error {
-  margin-top: 1rem;
-  padding: 0.75rem 1rem;
-  color: #8b1111;
-  background-color: #ffe3e3;
-  border-radius: 0.5rem;
+.locale-button-active {
+  color: #ffffff;
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
 }
 </style>

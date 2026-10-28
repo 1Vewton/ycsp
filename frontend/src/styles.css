@@ -1,0 +1,170 @@
+/* 全站共用的样式变量与基础类：页面容器、按钮、卡片、状态提示。
+   只属于某个页面的样式写在对应组件的 <style scoped> 里（见 views/README.md）。 */
+
+:root {
+  --color-primary: #0b5d8a;
+  --color-primary-dark: #094a6e;
+  --color-primary-soft: #eef5fa;
+  --color-text: #1f2933;
+  --color-text-muted: #52606d;
+  --color-border: #b7c9d6;
+  --color-divider: #dbe4ea;
+  --color-surface: #ffffff;
+  --color-background: #f5f8fa;
+  --color-success-text: #014d40;
+  --color-success-background: #e3f9e5;
+  --color-error-text: #8b1111;
+  --color-error-background: #ffe3e3;
+  --radius-small: 0.5rem;
+  --radius-pill: 999px;
+  /* 正文与顶栏共用同一宽度，页面切换时标题不会左右跳动。 */
+  --content-width: 48rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+  line-height: 1.6;
+  color: var(--color-text);
+  background-color: var(--color-background);
+}
+
+/* 每个页面共用的容器与标题。 */
+.page {
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+}
+
+.page-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.75rem;
+  color: var(--color-primary);
+}
+
+.page-intro {
+  margin: 0 0 1.5rem;
+  color: var(--color-text-muted);
+}
+
+.section-title {
+  margin: 2rem 0 0.75rem;
+  font-size: 1.15rem;
+}
+
+.primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.7rem 1.4rem;
+  font-family: inherit;
+  font-size: 1rem;
+  color: #ffffff;
+  text-decoration: none;
+  background-color: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-small);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.primary-button:hover:not(:disabled) {
+  background-color: var(--color-primary-dark);
+}
+
+.primary-button:disabled {
+  background-color: #9aa5b1;
+  cursor: progress;
+}
+
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1.1rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: var(--color-primary);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.secondary-button:hover:not(:disabled) {
+  background-color: var(--color-primary-soft);
+}
+
+.secondary-button:disabled {
+  color: var(--color-text-muted);
+  cursor: progress;
+}
+
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+/* 成功 / 失败 / 等待三种状态，统一留给学生看懂的一句话。 */
+.status-success {
+  margin: 1rem 0 0;
+  padding: 0.75rem 1rem;
+  color: var(--color-success-text);
+  background-color: var(--color-success-background);
+  border-radius: var(--radius-small);
+}
+
+.status-error {
+  margin: 1rem 0 0;
+  padding: 0.75rem 1rem;
+  color: var(--color-error-text);
+  background-color: var(--color-error-background);
+  border-radius: var(--radius-small);
+}
+
+.status-hint {
+  margin: 1rem 0 0;
+  color: var(--color-text-muted);
+}
+
+/* 还没做完的区域：明确告诉学生这里以后会出现什么，而不是留一块空白。 */
+.placeholder-panel {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  background-color: var(--color-surface);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-small);
+}
+
+.placeholder-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.placeholder-text {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+/* 系统开启“减少动态效果”时，别让等待图标一直转。 */
+@media (prefers-reduced-motion: reduce) {
+  .fa-spin,
+  .fa-spin-pulse {
+    animation: none;
+  }
+}
