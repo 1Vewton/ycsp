@@ -171,9 +171,17 @@ export const enMessages = {
   result_failed_hint: 'This run did not finish; the reason is shown above.',
   result_duration_seconds: 'This run took {seconds} seconds.',
   result_retry_button: 'Try again',
-  result_structure_pending_title: 'The structure view is on its way',
-  result_structure_pending_text:
-    'Soon you will see the structure name, unit cell size, atom positions and why the platform chose this structure.',
+  // Structure viewer
+  structure_title: 'Crystal structure',
+  structure_loading: 'Loading the structure...',
+  structure_preparing: 'Preparing the 3D model...',
+  structure_drag_hint: 'Drag to rotate, use the scroll wheel to zoom.',
+  structure_reset_view: 'Reset view',
+  structure_canvas_label: '3D view of the crystal structure',
+  structure_webgl_unavailable:
+    'This device cannot show the 3D model because the browser does not support WebGL. Please try another device or tell your teacher.',
+  structure_render_failed:
+    'The 3D model could not be loaded. Please refresh the page; if it keeps failing, tell your teacher.',
   // Shared navigation
   back_home: 'Back to home',
   predict_another: 'Predict another',

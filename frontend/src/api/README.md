@@ -4,7 +4,7 @@
 
 | 文件 | 作用 |
 | --- | --- |
-| `tasks.ts` | 创建 / 查询 / 取消预测任务；把 `{ status, code, params }` 统一转成 `ApiError` |
+| `tasks.ts` | 创建 / 查询 / 取消预测任务、读取结构结果；把 `{ status, code, params }` 统一转成 `ApiError` |
 
 ## 约定
 

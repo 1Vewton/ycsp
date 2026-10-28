@@ -151,9 +151,16 @@ export const zhMessages = {
   result_failed_hint: '这次计算没有完成，原因见上面的提示。',
   result_duration_seconds: '这次计算用了 {seconds} 秒。',
   result_retry_button: '再试一次',
-  result_structure_pending_title: '结构展示还在准备中',
-  result_structure_pending_text:
-    '很快就会在这里看到结构名称、晶胞大小、原子位置，以及为什么是这个结论。',
+  // 三维结构
+  structure_title: '晶体结构',
+  structure_loading: '正在读取结构……',
+  structure_preparing: '正在准备三维模型……',
+  structure_drag_hint: '按住拖动可以旋转，滚轮可以缩放。',
+  structure_reset_view: '重置视角',
+  structure_canvas_label: '晶体结构三维示意图',
+  structure_webgl_unavailable:
+    '这台设备暂时显示不了三维模型（浏览器不支持 WebGL），请换一台设备或告诉老师。',
+  structure_render_failed: '三维模型加载失败，请刷新页面再试；如果一直失败，请告诉老师。',
   // 页面导航
   back_home: '回到首页',
   predict_another: '再预测一个',

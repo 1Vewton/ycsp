@@ -13,10 +13,13 @@ import { faSpinner } from '@fortawesome/free-solid-svg-icons/faSpinner'
 import { faXmark } from '@fortawesome/free-solid-svg-icons/faXmark'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
+import StructureViewer from '../components/StructureViewer.vue'
 import {
   cancelTask,
   fetchTask,
+  fetchTaskResult,
   problemFromError,
+  type StructureResult,
   type TaskProblem,
   type TaskSnapshot,
   type TaskStatus,
@@ -56,6 +59,9 @@ const task = ref<TaskSnapshot | null>(null)
 const loadFailure = ref<TaskProblem | null>(null)
 const cancelFailure = ref<TaskProblem | null>(null)
 const isCancelling = ref(false)
+const structure = ref<StructureResult | null>(null)
+const structureFailure = ref<TaskProblem | null>(null)
+const isLoadingStructure = ref(false)
 
 let pollTimer: ReturnType<typeof setTimeout> | null = null
 // 离开页面后不再写状态、不再排下一次轮询（请求本身无法取消，丢掉结果即可）。
@@ -107,8 +113,11 @@ async function loadTask(): Promise<void> {
 
     if (snapshot.status === 'pending' || snapshot.status === 'running') {
       scheduleRefresh()
-    } else {
-      stopPolling()
+      return
+    }
+    stopPolling()
+    if (snapshot.status === 'succeeded') {
+      void loadStructure()
     }
   } catch (error) {
     if (isStopped) {
@@ -116,6 +125,27 @@ async function loadTask(): Promise<void> {
     }
     stopPolling()
     loadFailure.value = problemFromError(error)
+  }
+}
+
+// 算完后单独取结构结果；失败时保留重试按钮，不把整页判成失败。
+async function loadStructure(): Promise<void> {
+  if (task.value === null || task.value.status !== 'succeeded') {
+    return
+  }
+  isLoadingStructure.value = true
+  structureFailure.value = null
+  try {
+    const result = await fetchTaskResult(task.value.id)
+    if (!isStopped) {
+      structure.value = result
+    }
+  } catch (error) {
+    if (!isStopped) {
+      structureFailure.value = problemFromError(error)
+    }
+  } finally {
+    isLoadingStructure.value = false
   }
 }
 
@@ -141,6 +171,9 @@ function startWatching(): void {
   task.value = null
   loadFailure.value = null
   cancelFailure.value = null
+  structure.value = null
+  structureFailure.value = null
+  isLoadingStructure.value = false
 
   if (!hasValidTaskId.value) {
     loadFailure.value = { code: 'task_not_found', params: { task_id: rawTaskId.value } }
@@ -263,9 +296,19 @@ watch(taskId, startWatching)
       </button>
     </template>
 
-    <section v-if="task?.status === 'succeeded'" class="placeholder-panel">
-      <h2 class="placeholder-title">{{ t('result_structure_pending_title') }}</h2>
-      <p class="placeholder-text">{{ t('result_structure_pending_text') }}</p>
+    <section v-if="task?.status === 'succeeded'" class="structure-section">
+      <h2 class="section-title">{{ t('structure_title') }}</h2>
+      <p v-if="isLoadingStructure" class="task-hint">{{ t('structure_loading') }}</p>
+      <template v-else-if="structureFailure">
+        <p class="status-error" role="alert">
+          {{ t(structureFailure.code, structureFailure.params) }}
+        </p>
+        <button type="button" class="secondary-button structure-retry" @click="loadStructure">
+          <FontAwesomeIcon :icon="faRotateRight" aria-hidden="true" />
+          <span>{{ t('result_retry_button') }}</span>
+        </button>
+      </template>
+      <StructureViewer v-else-if="structure" :result="structure" />
     </section>
 
     <div class="result-actions">
@@ -372,6 +415,14 @@ watch(taskId, startWatching)
 
 .cancel-button,
 .retry-button {
+  margin-top: 1rem;
+}
+
+.structure-section {
+  margin-top: 2rem;
+}
+
+.structure-retry {
   margin-top: 1rem;
 }
 
