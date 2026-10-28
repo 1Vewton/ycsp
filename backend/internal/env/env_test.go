@@ -61,6 +61,52 @@ func TestGetIntReportsInvalidValue(t *testing.T) {
 	}
 }
 
+func TestGetBoolParsesTrueAndOne(t *testing.T) {
+	for _, raw := range []string{"true", "TRUE", "1"} {
+		t.Setenv("YCSP_TEST_FLAG", raw)
+		value, err := env.GetBool("YCSP_TEST_FLAG", false)
+		if err != nil {
+			t.Fatalf("%q: %v", raw, err)
+		}
+		if !value {
+			t.Errorf("%q parsed as false", raw)
+		}
+	}
+}
+
+func TestGetBoolParsesFalseAndZero(t *testing.T) {
+	for _, raw := range []string{"false", "0"} {
+		t.Setenv("YCSP_TEST_FLAG", raw)
+		value, err := env.GetBool("YCSP_TEST_FLAG", true)
+		if err != nil {
+			t.Fatalf("%q: %v", raw, err)
+		}
+		if value {
+			t.Errorf("%q parsed as true", raw)
+		}
+	}
+}
+
+func TestGetBoolUsesFallback(t *testing.T) {
+	t.Setenv("YCSP_TEST_FLAG", "")
+
+	value, err := env.GetBool("YCSP_TEST_FLAG", true)
+	if err != nil {
+		t.Fatalf("GetBool: %v", err)
+	}
+	if !value {
+		t.Error("fallback true was ignored")
+	}
+}
+
+func TestGetBoolRejectsTypos(t *testing.T) {
+	t.Setenv("YCSP_TEST_FLAG", "ture")
+
+	if _, err := env.GetBool("YCSP_TEST_FLAG", false); err == nil {
+		t.Fatal("expected an error for a misspelled boolean")
+	}
+}
+
 func TestLoadReadsEnvFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".env")
 	if err := os.WriteFile(path, []byte("YCSP_TEST_LOADED=from-file\n"), 0o600); err != nil {

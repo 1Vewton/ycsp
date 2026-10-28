@@ -60,14 +60,14 @@ type taskResultCell struct {
 	AngleGammaDegree float64 `json:"angle_gamma_degree"`
 }
 
-func registerTaskRoutes(router *gin.Engine, service *tasks.Service) {
-	router.POST("/api/tasks", createTaskHandler(service))
+func registerTaskRoutes(router *gin.Engine, service *tasks.Service, auth authHandlers) {
+	router.POST("/api/tasks", createTaskHandler(service, auth))
 	router.GET("/api/tasks/:id", getTaskHandler(service))
 	router.GET("/api/tasks/:id/result", getTaskResultHandler(service))
 	router.POST("/api/tasks/:id/cancel", cancelTaskHandler(service))
 }
 
-func createTaskHandler(service *tasks.Service) gin.HandlerFunc {
+func createTaskHandler(service *tasks.Service, auth authHandlers) gin.HandlerFunc {
 	return func(context *gin.Context) {
 		var request createTaskRequest
 		if err := context.ShouldBindJSON(&request); err != nil {
@@ -87,7 +87,8 @@ func createTaskHandler(service *tasks.Service) gin.HandlerFunc {
 			return
 		}
 
-		task, err := service.Create(formula)
+		// 登录了就记下任务归属；没登录也能预测（匿名任务 user_id 为 NULL）。
+		task, err := service.Create(formula, auth.optionalUserID(context))
 		if err != nil {
 			writeServerError(context, err)
 			return

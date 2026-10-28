@@ -82,9 +82,13 @@ func (service *Service) Stop() {
 	service.workers.Wait()
 }
 
-// Create 建一条 pending 任务并排队，立即返回。
-func (service *Service) Create(formula string) (*store.PredictionTask, error) {
-	task := store.PredictionTask{Formula: formula, Status: store.TaskStatusPending}
+// Create 建一条 pending 任务并排队，立即返回；userID 为空表示匿名预测。
+func (service *Service) Create(formula string, userID *uint) (*store.PredictionTask, error) {
+	task := store.PredictionTask{
+		Formula: formula,
+		UserID:  userID,
+		Status:  store.TaskStatusPending,
+	}
 	if err := service.database.Create(&task).Error; err != nil {
 		return nil, err
 	}

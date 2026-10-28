@@ -13,6 +13,6 @@
 
 约定：
 
-- 新增 code 必须同时在前端语言包 `frontend/src/messages.ts` 补中、英两种文案。
+- 新增 code 必须同时在前端语言包 `frontend/src/locales/` 补中、英两种文案（见该目录 README）。
 - 需要填进句子的数值放进 params（例如 `{"max_length": 64}`），不要把数字写死在文案里。
 - 数据处理层自己返回的 code（如 `formula_charge_unbalanced`）原样透传，前端已有对应文案。

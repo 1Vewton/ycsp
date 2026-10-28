@@ -18,11 +18,18 @@ const (
 	FamilyMetallic = "metallic"
 )
 
-// User 是使用者。账号体系未定，先只存昵称。
+// User 是使用者。
 type User struct {
-	ID          uint   `gorm:"primaryKey"`
-	DisplayName string `gorm:"size:64;not null"`
-	CreatedAt   time.Time
+	ID uint `gorm:"primaryKey"`
+	// DisplayName 同时是登录名，所以要求唯一；学生自助注册时由自己填写。
+	DisplayName string `gorm:"size:64;not null;uniqueIndex"`
+
+	// PasswordHash 存 bcrypt 哈希（盐已写在哈希串里），从不存明文。
+	// 空串表示还没设密码：这种账号不能登录（见 internal/auth）。
+	// default:'' 让已有数据库能平滑加上这一列——老账号先置空，重置密码后再写回。
+	PasswordHash string `gorm:"size:100;not null;default:''"`
+
+	CreatedAt time.Time
 }
 
 // PredictionTask 是一次预测任务：记录输入、状态与错误信息。

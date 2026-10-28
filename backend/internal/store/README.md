@@ -28,6 +28,7 @@ postgres / mysql 没有默认值：连接串含地址与账号，猜错只会更
 
 - 外键只在“子表”一侧声明（`PredictionTask.User`、`StructureResult.Task`）。
   父子两侧都写会生成两条约束，其中一条不带级联，删除时会被它挡住。
+- 密码只存 bcrypt 哈希（`users.password_hash`），哈希在 [`../auth`](../auth/README.md) 里生成与校验，模型里不出现明文。
 - JSON 列（`error_params` / `atoms` / `rule` / `caveats`）用文本存，
   具体结构由数据处理层定义，表里不重复描述。
 

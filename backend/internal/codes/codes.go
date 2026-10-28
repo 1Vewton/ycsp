@@ -32,6 +32,23 @@ const (
 	TaskFormulaTooLong = "task_formula_too_long" // 参数 max_length
 )
 
+// 账号与会话。
+const (
+	UserRegistered = "user_registered"
+	UserOK         = "user_ok"
+	SignedIn       = "signed_in"
+	SignedOut      = "signed_out"
+
+	UserNameTaken   = "user_name_taken"
+	UserNameInvalid = "user_name_invalid" // 参数 min_length、max_length
+	PasswordTooWeak = "password_too_weak" // 参数 rules[]、min_length、max_bytes
+
+	InvalidCredentials = "invalid_credentials"
+	NotSignedIn        = "not_signed_in"
+	SessionUnavailable = "session_unavailable"
+	TooManyAttempts    = "too_many_attempts" // 参数 retry_after_seconds、retry_after_minutes
+)
+
 // 通用错误。
 const (
 	RequestInvalidBody = "request_invalid_body"

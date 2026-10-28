@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/1Vewton/ycsp/backend/internal/auth"
 	"github.com/1Vewton/ycsp/backend/internal/store"
 	"gorm.io/gorm"
 )
@@ -231,6 +232,89 @@ func TestMigrateReportsFailureOnAClosedDatabase(t *testing.T) {
 
 	if err := store.Migrate(database); err == nil {
 		t.Fatal("expected an error when migrating a closed database")
+	}
+}
+
+func TestUserStoresOnlyThePasswordHash(t *testing.T) {
+	database := openMigratedDatabase(t)
+
+	const plainPassword = "ycsp-student-passphrase"
+	hashedPassword, err := auth.HashPassword(plainPassword)
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+
+	user := store.User{DisplayName: "小明", PasswordHash: hashedPassword}
+	if err := database.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	var loaded store.User
+	if err := database.First(&loaded, user.ID).Error; err != nil {
+		t.Fatalf("load user: %v", err)
+	}
+	if loaded.PasswordHash != hashedPassword {
+		t.Error("password hash changed after a database round trip")
+	}
+	if !auth.VerifyPassword(loaded.PasswordHash, plainPassword) {
+		t.Error("stored hash no longer verifies the password")
+	}
+
+	var plaintextRows int64
+	if err := database.Model(&store.User{}).
+		Where("password_hash = ?", plainPassword).
+		Count(&plaintextRows).Error; err != nil {
+		t.Fatalf("count plaintext rows: %v", err)
+	}
+	if plaintextRows != 0 {
+		t.Error("the plaintext password was stored in the database")
+	}
+}
+
+func TestMigrateAddsPasswordHashToAnExistingUsersTable(t *testing.T) {
+	// 这个测试要从“没有 password_hash 的旧库”开始，所以不能先用 Migrate 建表。
+	database, err := store.Open(store.Settings{
+		Driver: store.DriverSQLite,
+		DSN:    filepath.Join(t.TempDir(), "legacy.db"),
+	})
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	t.Cleanup(func() {
+		sqlDatabase, err := database.DB()
+		if err == nil {
+			_ = sqlDatabase.Close()
+		}
+	})
+
+	// 模拟账号体系之前的 users 表：没有 password_hash 列，而且已经有一条记录。
+	if err := database.Exec(`
+		CREATE TABLE users (
+			id integer primary key,
+			display_name text not null,
+			created_at datetime
+		)`).Error; err != nil {
+		t.Fatalf("create legacy table: %v", err)
+	}
+	if err := database.Exec(
+		`INSERT INTO users (display_name, created_at) VALUES (?, CURRENT_TIMESTAMP)`, "小明",
+	).Error; err != nil {
+		t.Fatalf("insert legacy user: %v", err)
+	}
+
+	if err := store.Migrate(database); err != nil {
+		t.Fatalf("migrate legacy database: %v", err)
+	}
+
+	var loaded store.User
+	if err := database.First(&loaded).Error; err != nil {
+		t.Fatalf("load user: %v", err)
+	}
+	if loaded.PasswordHash != "" {
+		t.Errorf("password_hash = %q, want empty for legacy accounts", loaded.PasswordHash)
+	}
+	if auth.VerifyPassword(loaded.PasswordHash, "anything") {
+		t.Error("a legacy account without a password must not pass verification")
 	}
 }
 

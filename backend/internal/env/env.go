@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -34,4 +35,18 @@ func GetInt(key string, fallback int) (int, error) {
 		return 0, fmt.Errorf("env: %s must be an integer, got %q", key, raw)
 	}
 	return value, nil
+}
+
+// GetBool 读取布尔环境变量；未设置或为空时返回 fallback。
+// 只认 true/false/1/0（大小写不敏感）：拼错的 "ture" 直接报错，而不是悄悄当 false。
+func GetBool(key string, fallback bool) (bool, error) {
+	raw := Get(key, strconv.FormatBool(fallback))
+	switch strings.ToLower(raw) {
+	case "true", "1":
+		return true, nil
+	case "false", "0":
+		return false, nil
+	default:
+		return false, fmt.Errorf("env: %s must be true/false, got %q", key, raw)
+	}
 }

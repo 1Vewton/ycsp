@@ -46,6 +46,8 @@ func Open(settings Settings) (*gorm.DB, error) {
 	database, err := gorm.Open(dialector, &gorm.Config{
 		// 只记录慢查询与错误，避免每个请求都刷一行 SQL。
 		Logger: logger.Default.LogMode(logger.Warn),
+		// 把驱动的唯一键冲突翻译成 gorm.ErrDuplicatedKey：注册重名时才能准确报错。
+		TranslateError: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("db: open %s: %w", settings.Driver, err)

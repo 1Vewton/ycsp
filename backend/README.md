@@ -8,17 +8,34 @@
 | --- | --- | --- |
 | GET | `/api/health` | 本层健康检查 |
 | GET | `/api/ping-compute` | 转发到数据处理层 `/health` |
+| POST | `/api/users` | 学生自助注册（成功后直接登录） |
+| POST | `/api/sessions` | 登录 |
+| DELETE | `/api/sessions` | 退出登录（幂等） |
+| GET | `/api/users/me` | 当前登录用户（未登录返回 401） |
 | POST | `/api/tasks` | 创建预测任务，立刻返回 `pending` |
 | GET | `/api/tasks/:id` | 查询任务状态（前端轮询这个） |
 | GET | `/api/tasks/:id/result` | 取任务的结构结果（还没算完返回 409） |
 | POST | `/api/tasks/:id/cancel` | 取消排队中的任务 |
 
-应答统一为 `{ service, status, code, params? }`，成功时另有 `compute` / `task` / `result`。
+应答统一为 `{ service, status, code, params? }`，成功时另有 `compute` / `task` / `result` / `user`。
 `code` 是语言无关的状态码（见 `internal/codes/codes.go`），面向用户的文案由前端按当前语言翻译。
 
 任务流程（异步）：`POST /api/tasks` 落库为 `pending` 并返回 → 后台 worker 调数据处理层 →
 前端轮询 `GET /api/tasks/:id` 直到 `succeeded` / `failed` → 再取 `/result`。
 详细规则见 [`internal/tasks/README.md`](./internal/tasks/README.md)。
+
+## 账号与会话
+
+- **学生自助注册**：昵称 2~32 个字符且唯一（昵称就是登录名），密码至少 8 位并含英文字母、
+  数字、特殊符号各一个；密码只存 bcrypt 哈希（见 [`internal/auth/README.md`](./internal/auth/README.md)）。
+- **会话**：登录成功后生成 256 位随机编号，存 Redis（`ycsp:session:<编号>` → 用户编号），
+  Cookie 名 `ycsp_session`，`HttpOnly` + `SameSite=Lax`，默认 7 天；HTTPS 部署时把
+  `YCSP_COOKIE_SECURE` 设为 `true`。会话规则见 [`internal/session/README.md`](./internal/session/README.md)。
+- **失败不泄露账号是否存在**：昵称不存在与密码错误都返回 `invalid_credentials`。
+- **登录失败限流**：同一昵称 15 分钟内失败 5 次、同一地址失败 20 次即锁定 15 分钟，
+  期间返回 `429 too_many_attempts`（带 `retry_after_seconds` / `retry_after_minutes` 与标准 `Retry-After` 头）；
+  登录成功只清昵称计数。规则见 [`internal/ratelimit/README.md`](./internal/ratelimit/README.md)。
+- **不登录也能预测**：任务照常创建，只是 `user_id` 为空；登录后创建的任务会记下归属。
 
 ## 数据表
 
@@ -35,7 +52,8 @@ users 1 ──── n prediction_tasks 1 ──── 1 structure_results
 | 字段 | 逻辑类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
 | `id` | 无符号整数 | 主键，自增 | |
-| `display_name` | 字符串(64) | 非空 | 学生昵称；账号体系未定，暂不做密码与邮箱 |
+| `display_name` | 字符串(64) | 非空，唯一 | 学生昵称，同时是登录名 |
+| `password_hash` | 字符串(100) | 非空，默认空串 | bcrypt 哈希：随机盐写在哈希串里，**从不存明文**；空串表示还没设密码，这种账号不能登录（见 [`internal/auth/README.md`](./internal/auth/README.md)） |
 | `created_at` | 时间 | 非空 | UTC |
 
 ### `prediction_tasks`：一次预测任务
@@ -109,6 +127,13 @@ pending ──► running ──► succeeded
 | `YCSP_COMPUTE_BASE_URL` | `http://127.0.0.1:8001` | 数据处理层地址 |
 | `YCSP_DB_DRIVER` | `sqlite` | 数据库引擎：`sqlite` / `postgres` / `mysql` |
 | `YCSP_DB_DSN` | `ycsp.db`（仅 sqlite） | sqlite 是文件路径；postgres / mysql 必须显式给连接串 |
+| `YCSP_SESSION_DRIVER` | `redis` | 会话存储：`redis` / `memory`（后者仅单机开发：重启即掉登录） |
+| `YCSP_REDIS_URL` | `redis://127.0.0.1:6379/0` | Redis 地址；启动时连不上会直接失败并提示 |
+| `YCSP_SESSION_LIFETIME_SECONDS` | `604800`（7 天） | 会话有效期 |
+| `YCSP_COOKIE_SECURE` | `false` | 只在 HTTPS 部署时设为 `true` |
+| `YCSP_LOGIN_MAX_ATTEMPTS` | `5` | 同一昵称在窗口内允许的失败次数 |
+| `YCSP_LOGIN_IP_MAX_ATTEMPTS` | `20` | 同一地址在窗口内允许的失败次数 |
+| `YCSP_LOGIN_BLOCK_SECONDS` | `900`（15 分钟） | 失败计数的窗口长度，也是锁定时的等待时间 |
 
 ## 如何运行
 
@@ -120,7 +145,8 @@ go run .
 启动后访问 <http://127.0.0.1:8000/api/health>。
 
 - 首次启动会自动创建 SQLite 文件（默认 `backend/ycsp.db`）并建表；想回到空库，删掉这个文件即可。
+- 注册与登录需要 Redis（默认 `redis://127.0.0.1:6379/0`）；本地没有 Redis 时设 `YCSP_SESSION_DRIVER=memory`。
 - 任务接口要先启动数据处理层：联系不上时任务会以 `compute_unreachable` 失败（不会一直卡在 pending）。
 - 拉不到 Go 依赖时（`proxy.golang.org` 不通）：先 `go env -w GOPROXY=https://goproxy.cn,direct`，再 `go mod tidy`。
-- 测试：`go test ./...`；加 `-cover` 看覆盖率（`api` 与 `env` 100%，`store` 九成以上；
-  只有启动入口 `main()` 不测，因为它会真的占用端口）。
+- 测试：`go test ./...`；加 `-cover` 看覆盖率（当前 `env` 100%、`store` 92.9%、`auth` 91.4%、`session` 84.1%、
+  `api` 81.6%，任务与账号包在 75%~85%；只有启动入口 `main()` 不测，因为它会真的占用端口）。

@@ -101,7 +101,7 @@ func TestCreateStoresAPendingTask(t *testing.T) {
 	database := openTestDatabase(t)
 	service := tasks.New(database, stubPredictor{})
 
-	task, err := service.Create("NaCl")
+	task, err := service.Create("NaCl", nil)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestServiceExecutesTheTaskAndStoresTheResult(t *testing.T) {
 		},
 	})
 
-	task, err := service.Create("NaCl")
+	task, err := service.Create("NaCl", nil)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestPredictionErrorIsStoredOnTheTask(t *testing.T) {
 		},
 	})
 
-	task, err := service.Create("NaCl2")
+	task, err := service.Create("NaCl2", nil)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestCancelledTaskIsNotExecuted(t *testing.T) {
 		},
 	})
 
-	task, err := service.Create("NaCl")
+	task, err := service.Create("NaCl", nil)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -242,7 +242,7 @@ func TestCancelRejectsFinishedTask(t *testing.T) {
 		},
 	})
 
-	task, err := service.Create("NaCl")
+	task, err := service.Create("NaCl", nil)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -271,7 +271,7 @@ func TestResultIsNotReadyWhilePending(t *testing.T) {
 	database := openTestDatabase(t)
 	service := tasks.New(database, stubPredictor{})
 
-	task, err := service.Create("NaCl")
+	task, err := service.Create("NaCl", nil)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}

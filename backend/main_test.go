@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 
 	"github.com/1Vewton/ycsp/backend/internal/store"
 )
@@ -16,6 +17,13 @@ func clearSettings(t *testing.T) {
 		"YCSP_COMPUTE_BASE_URL",
 		"YCSP_DB_DRIVER",
 		"YCSP_DB_DSN",
+		"YCSP_SESSION_DRIVER",
+		"YCSP_REDIS_URL",
+		"YCSP_SESSION_LIFETIME_SECONDS",
+		"YCSP_COOKIE_SECURE",
+		"YCSP_LOGIN_MAX_ATTEMPTS",
+		"YCSP_LOGIN_IP_MAX_ATTEMPTS",
+		"YCSP_LOGIN_BLOCK_SECONDS",
 	} {
 		t.Setenv(key, "")
 	}
@@ -44,6 +52,27 @@ func TestReadSettingsUsesDefaults(t *testing.T) {
 	if settings.database.DSN != "ycsp.db" {
 		t.Errorf("database DSN = %q, want %q", settings.database.DSN, "ycsp.db")
 	}
+	if settings.sessions.driver != "redis" {
+		t.Errorf("session driver = %q, want %q", settings.sessions.driver, "redis")
+	}
+	if settings.sessions.redisURL != "redis://127.0.0.1:6379/0" {
+		t.Errorf("redis URL = %q", settings.sessions.redisURL)
+	}
+	if settings.sessions.lifetime != 7*24*time.Hour {
+		t.Errorf("session lifetime = %v, want 7 days", settings.sessions.lifetime)
+	}
+	if settings.sessions.secureCookie {
+		t.Error("cookie secure should default to false for local http development")
+	}
+	if settings.loginLimit.maxAttemptsPerAccount != 5 {
+		t.Errorf("login attempts per account = %d, want 5", settings.loginLimit.maxAttemptsPerAccount)
+	}
+	if settings.loginLimit.maxAttemptsPerAddress != 20 {
+		t.Errorf("login attempts per address = %d, want 20", settings.loginLimit.maxAttemptsPerAddress)
+	}
+	if settings.loginLimit.window != 15*time.Minute {
+		t.Errorf("login block window = %v, want 15m", settings.loginLimit.window)
+	}
 }
 
 func TestReadSettingsPrefersTheEnvironment(t *testing.T) {
@@ -69,6 +98,96 @@ func TestReadSettingsPrefersTheEnvironment(t *testing.T) {
 	}
 	if settings.database.DSN != "host=db.local dbname=ycsp" {
 		t.Errorf("database DSN = %q", settings.database.DSN)
+	}
+}
+
+func TestReadSettingsPrefersSessionEnvironment(t *testing.T) {
+	clearSettings(t)
+	t.Setenv("YCSP_SESSION_DRIVER", "memory")
+	t.Setenv("YCSP_REDIS_URL", "redis://cache.local:6380/2")
+	t.Setenv("YCSP_SESSION_LIFETIME_SECONDS", "3600")
+	t.Setenv("YCSP_COOKIE_SECURE", "true")
+
+	settings, err := readSettings()
+	if err != nil {
+		t.Fatalf("readSettings: %v", err)
+	}
+
+	if settings.sessions.driver != "memory" {
+		t.Errorf("session driver = %q, want memory", settings.sessions.driver)
+	}
+	if settings.sessions.redisURL != "redis://cache.local:6380/2" {
+		t.Errorf("redis URL = %q", settings.sessions.redisURL)
+	}
+	if settings.sessions.lifetime != time.Hour {
+		t.Errorf("session lifetime = %v, want 1h", settings.sessions.lifetime)
+	}
+	if !settings.sessions.secureCookie {
+		t.Error("cookie secure should be true")
+	}
+}
+
+func TestReadSettingsRejectsInvalidSessionLifetime(t *testing.T) {
+	clearSettings(t)
+	t.Setenv("YCSP_SESSION_LIFETIME_SECONDS", "one-week")
+
+	if _, err := readSettings(); err == nil {
+		t.Fatal("expected an error for a non-numeric session lifetime")
+	}
+}
+
+func TestReadSettingsRejectsMisspelledCookieSecure(t *testing.T) {
+	clearSettings(t)
+	t.Setenv("YCSP_COOKIE_SECURE", "yes-please")
+
+	if _, err := readSettings(); err == nil {
+		t.Fatal("expected an error for a non-boolean cookie flag")
+	}
+}
+
+func TestReadSettingsPrefersLoginLimitEnvironment(t *testing.T) {
+	clearSettings(t)
+	t.Setenv("YCSP_LOGIN_MAX_ATTEMPTS", "3")
+	t.Setenv("YCSP_LOGIN_IP_MAX_ATTEMPTS", "9")
+	t.Setenv("YCSP_LOGIN_BLOCK_SECONDS", "120")
+
+	settings, err := readSettings()
+	if err != nil {
+		t.Fatalf("readSettings: %v", err)
+	}
+
+	if settings.loginLimit.maxAttemptsPerAccount != 3 {
+		t.Errorf("account attempts = %d, want 3", settings.loginLimit.maxAttemptsPerAccount)
+	}
+	if settings.loginLimit.maxAttemptsPerAddress != 9 {
+		t.Errorf("address attempts = %d, want 9", settings.loginLimit.maxAttemptsPerAddress)
+	}
+	if settings.loginLimit.window != 2*time.Minute {
+		t.Errorf("window = %v, want 2m", settings.loginLimit.window)
+	}
+}
+
+func TestReadSettingsRejectsInvalidLoginLimit(t *testing.T) {
+	clearSettings(t)
+	t.Setenv("YCSP_LOGIN_MAX_ATTEMPTS", "five")
+
+	if _, err := readSettings(); err == nil {
+		t.Fatal("expected an error for a non-numeric login limit")
+	}
+}
+
+func TestNewSessionBackendSupportsMemoryAndRejectsUnknownDrivers(t *testing.T) {
+	sessions, counter, closeBackend, err := newSessionBackend(sessionSettings{driver: "memory"})
+	if err != nil {
+		t.Fatalf("memory backend: %v", err)
+	}
+	if sessions == nil || counter == nil {
+		t.Fatal("memory backend returned a nil store or counter")
+	}
+	closeBackend()
+
+	if _, _, _, err := newSessionBackend(sessionSettings{driver: "cookie-only"}); err == nil {
+		t.Fatal("expected an error for an unsupported session driver")
 	}
 }
 
