@@ -21,12 +21,13 @@
 产品要能切换界面语言，让不同语言的用户都能独立操作：
 
 - 默认中文，并支持英文（中/英可切换）。
-- 文案与代码分离：前端用语言包（如 vue-i18n），不在组件里写死文字。
+- 文案与代码分离：前端用语言包（见 `frontend/src/locales/`），不在组件里写死文字。
 - 后端只返回错误码与参数，由前端按当前语言翻译，避免把某种语言的提示写死在后端。
 
 ## 安装与启动
 
-需要 Go 1.25+、Node.js 22+、[uv](https://docs.astral.sh/uv/)（数据处理层用它管理 Python 依赖与虚拟环境）。
+需要 Go 1.25+、Node.js 22+、[uv](https://docs.astral.sh/uv/)（数据处理层用它管理 Python 依赖与虚拟环境），
+以及 [Redis](https://redis.io/)（保存登录会话；本地没有 Redis 时可临时用内存会话，见下）。
 
 端口与地址都有默认值，直接就能跑；需要改的话，把对应层的 `.env.example` 复制为 `.env` 再编辑：
 
@@ -52,7 +53,10 @@ cd frontend
 npm install; npm run dev
 ```
 
-打开 <http://localhost:5173/>，点页面按钮；若显示“你好，我是数据处理层……”即三层已打通。
+打开 <http://localhost:5173/>，在首页点“检查后台服务”；若显示“后台服务正常，可以开始预测了。”即三层已打通。
+
+> 本地没有 Redis 时，把 `backend/.env` 里的 `YCSP_SESSION_DRIVER` 改成 `memory` 即可跑通注册与登录
+> （会话只存在进程内存里，重启后需要重新登录）。
 
 ## 目录导航
 
@@ -62,4 +66,4 @@ npm install; npm run dev
 | `backend/` | 数据管理 | [README](./backend/README.md) |
 | `compute/` | 数据处理 | [README](./compute/README.md) |
 
-CI 配置见 [`.github/README.md`](./.github/README.md)，开发计划见 [TASKS.md](./TASKS.md)。
+CI 配置见 [`.github/README-workflow.md`](./.github/README-workflow.md)，开发计划见 [TASKS.md](./TASKS.md)。

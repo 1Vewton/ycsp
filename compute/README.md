@@ -45,7 +45,7 @@ POST /predict
 
 - `cell` 是晶胞参数（棱长 Å、夹角 °），`atoms` 是原子与分数坐标，前端可直接拿去画图。
 - `rule` 说明“为什么给出这个结构”，`caveats` 说明结果的局限；两者都只含 code 与数值，
-  前端按 code 翻成一句话（文案见 `frontend/src/messages.ts`）。
+  前端按 code 翻成一句话（文案见 `frontend/src/locales/`）。
 
 ## 算法思路
 

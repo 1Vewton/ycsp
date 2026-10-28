@@ -1,6 +1,9 @@
-# GitHub Actions（.github）
+# GitHub Actions 持续集成（.github）
 
 持续集成配置：每次 push / PR 自动检查三层能否安装依赖、通过格式检查、编译与构建。
+
+> 为什么不叫 README：GitHub 会把目录里的 README 文件渲染成该目录的说明，
+> 也会把 `.github/` 下的 README 当作仓库首页 README 的候选；这份文档只讲 CI，不该顶替 README 的位置。
 
 | 文件 | 作用 |
 | --- | --- |

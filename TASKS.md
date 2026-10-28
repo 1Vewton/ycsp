@@ -85,9 +85,9 @@
 - [x] **2.2** 用 GORM 写模型并做自动迁移（`internal/store/`：三张表模型、引擎可切换的连接层、可重复执行的 `Migrate`）
 - [x] **2.3** 实现任务接口：创建任务、查询状态、获取结果、取消任务（`POST /api/tasks` 等四个；异步执行、前端轮询）
 - [x] **2.4** 对接数据处理层：把任务参数发给 Python，接收结果并落库（`internal/compute` 客户端 + `internal/tasks` worker）
-- [ ] **2.5** 统一错误码表：后端只定义 `code` + `params`，文案翻译放在前端
-- [ ] **2.6** 输出接口文档，并登记到 `backend/README.md`
-- [ ] **2.7** 写 `backend/README.md`：职责、对外接口、数据表、示例、限制
+- [x] **2.5** 统一错误码表：后端只定义 `code` + `params`，文案翻译放在前端（`internal/codes/codes.go`，前端文案见 `frontend/src/locales/`）
+- [x] **2.6** 输出接口文档，并登记到 `backend/README.md`（《对外接口》一节）
+- [x] **2.7** 写 `backend/README.md`：职责、对外接口、数据表、示例、限制
 
 ## 阶段 3：前端（Vue + TypeScript）
 
@@ -95,14 +95,14 @@
 
 **验收标准**：一个没学过化学、也没学过编程的中学生，不看说明书就能自己完成一次“预测”。
 
-- [ ] **3.1** 页面骨架：首页（平台能干什么）、预测页、结果页
-- [ ] **3.2** 输入组件：让学生输入 / 选择化学组成（带即时校验与中文提示）
-- [ ] **3.3** 调用数据管理层接口，实时展示任务进度
+- [x] **3.1** 页面骨架：首页（平台能干什么）、预测页、结果页
+- [x] **3.2** 输入组件：让学生输入 / 选择化学组成（带即时校验与中文提示）
+- [x] **3.3** 调用数据管理层接口，实时展示任务进度
 - [ ] **3.4** 晶体结构三维可视化（**可视化库选型待确认** Q4）
 - [ ] **3.5** 结果解释区：把结构类型、晶胞参数用中学生能懂的话讲清楚
 - [ ] **3.6** 错误提示：后端每个 `code` 都有对应文案，并按当前语言显示
 - [ ] **3.7** 写 `frontend/README.md`：职责、页面结构、与后端接口约定、限制
-- [ ] **3.8** 语言切换：界面可切换中/英（`frontend/src/messages.ts` 已备好中/英文案，需接入切换）
+- [x] **3.8** 语言切换：界面可切换中/英（`frontend/src/locales/` 分开存放 `zh.ts` / `en.ts`，`t(tag, params)` 取词、缺翻译回退英文、选择记在 `localStorage`）
 
 ## 阶段 4：端到端集成
 
@@ -146,9 +146,9 @@
 | 2026-10-13 | — | 补 4 个代码子目录的 README；`AGENTS.md` 新增“父 README 不复制子模块文档、只登记一行导航”的规则 | 应作者要求：减少重复、节省 token |
 | 2026-10-14 | — | 精简文档与代码注释（按新 `AGENTS.md` 标准）；数据处理层改用 uv 管理依赖（`pyproject.toml` + `uv.lock` 取代 `requirements.txt`） | 顺带修掉 `vue-tsc` 与 TypeScript 7 不兼容（`typescript` 固定 `^5.9.3`） |
 | 2026-10-14 | 1 | 完成 1.1：数据处理层内部数据结构 `compute/app/domain/structure.py`（Element / Atom / UnitCell） | 长度 Å、角度 °；含基本合法性校验；按多语言规则不放展示文案 |
-| 2026-10-16 | — | 去掉后端中文硬编码：应答改为 `{ service, status, code, params? }`（`backend/internal/api/codes.go`）；前端按 `code` 显示，文案抽到 `frontend/src/messages.ts` | 中/英文案已备齐；语言切换留到阶段 3 |
+| 2026-10-16 | — | 去掉后端中文硬编码：应答改为 `{ service, status, code, params? }`（`backend/internal/api/codes.go`）；前端按 `code` 显示，文案抽到 `frontend/src/messages.ts` | 中/英文案已备齐；语言切换留到阶段 3（文案现已拆到 `frontend/src/locales/`） |
 | 2026-10-17 | — | 三层网络配置外置到 `.env`（各层 `/.env.example` + `.env`），并各有一个带默认值的 env 管理器（`compute/app/env`、`backend/internal/env`、`frontend/env.ts`） | 服务名、状态码等协议常量仍留在代码里 |
-| 2026-10-17 | — | 新增 GitHub Actions CI（`.github/workflows/ci.yml`）：三层并行检查（uv 依赖与导入 / Go 格式与构建 / 前端类型检查与构建） | 说明见 `.github/README.md`，并登记到根 README 导航 |
+| 2026-10-17 | — | 新增 GitHub Actions CI（`.github/workflows/ci.yml`）：三层并行检查（uv 依赖与导入 / Go 格式与构建 / 前端类型检查与构建） | 说明见 `.github/README-workflow.md`，并登记到根 README 导航 |
 | 2026-10-19 | 1 | 完成 1.2：`app/domain/elements.py` 内置 19 个常见元素（Pauling 电负性）与 13 个常见离子半径 | 离子半径取 Shannon 1976 有效值、配位数 6；含 `KeyError` 提示 |
 | 2026-10-20 | 1 | 确定教学范围（Q3/G0.3）：离子晶体 + 金属晶体 + 金刚石型共价晶体一起做；金属结构型按经验表（用户选 A） | 理由：三类共用一套“判类型 → 选原型 → 算晶胞”管线，比各做一套省成本 |
 | 2026-10-20 | 1 | 完成 1.3 / 1.5 / 1.6：`composition.py`、`prototypes.py`、`prediction.py` + `POST /predict` | 覆盖 NaCl/CsCl/ZnS/萤石（含反萤石）、fcc/bcc/hcp、金刚石/SiC；元素数据扩到 31 个，补共价半径与金属半径 |
@@ -160,3 +160,17 @@
 | 2026-10-21 | 2 | 完成 2.2：`internal/store/` 三张表模型 + `Open`（sqlite / postgres / mysql 可切换）+ `Migrate`，启动时自动建表 | 9 个 Go 测试覆盖迁移、存取、级联删除与配置校验；默认 SQLite 文件 `ycsp.db` |
 | 2026-10-21 | 2 | 补 Go 测试：`api`（7，含假数据处理层的五种应答）、`env`（7）、`main` 配置解析（4）、`store`（13） | 共 31 个测试函数；覆盖率 api/env 100%、store 92.9%、main 29.6%（仅启动入口未测）；CI 改为 `go test -cover ./...` |
 | 2026-10-21 | 2 | 完成 2.3 + 2.4：任务接口（创建 / 查询 / 结果 / 取消）+ 异步 worker + 数据处理层客户端，结果与错误按 code 落库 | 端到端实测：`CaF2` → pending → succeeded（133 ms）→ fluorite 5.381 Å / 12 原子；`H2O` → failed（`composition_not_supported`） |
+| 2026-10-23 | 2 | 按用户要求给 `users` 加 `password_hash`：bcrypt 加盐哈希（`internal/auth`），不存明文；旧库自动加列（默认空串 = 未设密码，不能登录） | 7 个 auth 测试 + 2 个迁移/落库测试；`golang.org/x/crypto` 变为直接依赖 |
+| 2026-10-23 | 2 | 新增注册/登录：`POST /api/users`、`POST /api/sessions`、`DELETE /api/sessions`、`GET /api/users/me`；会话存 Redis（可切 `memory`），Cookie `HttpOnly`+`SameSite=Lax`；密码策略 8 位 + 字母 + 数字 + 特殊符号；任务记录登录用户 | 新增 `auth`（策略）、`session`、`users`、`testutil` 包；测试用 `miniredis`，CI 无需 Redis 服务 |
+| 2026-10-23 | 2 | 新增登录失败限流：按昵称 5 次 / 按地址 20 次 / 15 分钟窗口（可配），超限返回 429 `too_many_attempts` + `Retry-After`；成功登录只清昵称计数 | 新增 `internal/ratelimit`（Redis + 内存两种计数器）；按直连 IP 统计，不信任 `X-Forwarded-For` |
+| 2026-10-24 | 2 | 补齐 2.5 / 2.6 / 2.7 的勾选：统一 code 表（`internal/codes`）、对外接口文档与 `backend/README.md` 已随账号体系落地 | 勾选前逐项对照代码与 README 确认 |
+| 2026-10-24 | — | 修文档与代码不一致：`.github` 的 CI 文档改名为 `README-workflow.md`（GitHub 会把 `README.md` 当成目录说明渲染，不该顶替）；`api/README` 去掉不存在的 `display.go` 并补 `auth.go`；`auth/README` 补 `policy.go`；后端覆盖率说明改为实测值；根 README 的连通提示改为实际文案 | 实测：compute 122 通过 / 99%，backend 全包通过，frontend 类型检查通过 |
+| 2026-10-24 | 3 | 完成 3.8 的多语言底座：语言包拆到 `frontend/src/locales/`（`zh.ts` / `en.ts`），组件只写 tag、用 `t(tag, params)` 取词；当前语言缺文案回退英文，两边都缺则显示 tag 并 `console.warn`；切换写入 `localStorage` 并同步 `<html lang>` 与标签页标题 | `zh.ts` 的键按 `en.ts` 校验，中英缺一即 `npm run type-check` 失败；原 `messages.ts` 删除 |
+| 2026-10-25 | 3 | 完成 3.1：页面骨架——引入 vue-router（hash 模式）与 `src/views/` 的三个页面（首页 / 预测页 / 结果页），`App.vue` 改为顶栏（标题 / 导航 / 语言切换）+ 路由出口；首页写清“能做什么、三步上手、支持范围”，阶段 0 的三层连通检查移到首页，并把“数据处理层”等架构词改成学生能看懂的说法 | 预测页输入框（3.2）、任务进度（3.3）、结构展示（3.4 / 3.5）留待后续；中英文案同步补齐，`src/styles.css` 收敛共用样式 |
+| 2026-10-25 | 3 | 完成 3.2：化学式输入组件——`components/FormulaInput.vue`（输入 + 三档即时反馈：怎么写 / 写法正确 / 第几个字符看不懂）+ `formulaValidation.ts` 纯函数校验（字符、括号、下标、长度，规则对齐数据处理层的解析器），预测页加三种晶体类型的示例按钮，点一下直接填入 | 元素是否收录、电荷是否守恒仍由数据处理层判断（避免前端复制元素数据造成漂移）；“开始预测”与进度留到 3.3 |
+| 2026-10-25 | 3 | 完成 3.3：预测页提交任务（`src/api/tasks.ts` 封装创建 / 查询 / 取消，统一抛 `ApiError`），结果页每秒轮询并用“排队中 → 计算中 → 已完成”三步展示进度；支持取消排队中的任务、显示失败原因与耗时、断网后重试 | 结构展示（3.4 / 3.5）仍是占位；任务快照字段保持后端 JSON 命名，联调确认创建 → 轮询 → 成功 / 失败全流程 |
+| 2026-10-25 | 3 | 界面美化：接入 Font Awesome（官方 Vue 组件 + 按需引入 SVG 图标）——顶栏品牌与导航、首页三步卡片与按钮、预测页按钮与返回、结果页状态徽标与取消 / 重试按钮；图标一律 `aria-hidden` 且旁边保留文字，系统开启“减少动态效果”时停止旋转 | 只打包实际用到的图标（检查产物：用到的图标在、未用的不在）；JS 体积 114.8 → 232.0 kB（gzip 44.0 → 75.1 kB），主要来自 Font Awesome 的 SVG 渲染内核 |
+
+
+
+

@@ -22,7 +22,7 @@ uv run pytest --cov=app --cov-report=term-missing
 ```
 
 当前约 99%。未覆盖的只有两类：`app/main.py` 的启动入口（会真的占用端口），
-以及 `prediction.py` 里“元素数据缺失 / 半径比过小”这类防御分支——它们要构造坏数据才能触发，
+以及 `app/domain/prediction.py` 里“元素数据缺失 / 半径比过小”这类防御分支——它们要构造坏数据才能触发，
 另一侧由 `test_element_data.py` 的一致性断言守住。
 
 CI 用 `--cov-fail-under=90` 兜底：新增代码如果完全没测，流水线会直接失败。
