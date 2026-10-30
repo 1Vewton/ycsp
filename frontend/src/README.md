@@ -10,6 +10,7 @@
 | `styles.css` | 全站共用样式变量与基础类（页面容器、按钮、卡片、状态提示） |
 | `formulaValidation.ts` | 化学式写法校验（纯函数）：字符、括号、下标；元素与电荷留给数据处理层 |
 | `structureCif.ts` | 把“晶胞参数 + 分数坐标”拼成 3Dmol 能读的最小 CIF（P1） |
+| `structureExplanation.ts` | 结果解释用的纯函数：晶胞形状判断、棱长与夹角格式化 |
 | `3dmol-es6.d.ts` | 声明 3Dmol 的 ES 模块构建，复用包自带类型 |
 | `api/` | 数据管理层接口封装（任务创建 / 查询 / 取消 / 结构结果），见 [api/README.md](./api/README.md) |
 | `components/` | 页面共用组件，见 [components/README.md](./components/README.md) |

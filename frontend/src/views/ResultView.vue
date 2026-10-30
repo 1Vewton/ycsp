@@ -13,6 +13,7 @@ import { faSpinner } from '@fortawesome/free-solid-svg-icons/faSpinner'
 import { faXmark } from '@fortawesome/free-solid-svg-icons/faXmark'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
+import StructureExplanation from '../components/StructureExplanation.vue'
 import StructureViewer from '../components/StructureViewer.vue'
 import {
   cancelTask,
@@ -310,6 +311,8 @@ watch(taskId, startWatching)
       </template>
       <StructureViewer v-else-if="structure" :result="structure" />
     </section>
+
+    <StructureExplanation v-if="structure" :result="structure" />
 
     <div class="result-actions">
       <RouterLink class="primary-button" to="/predict">

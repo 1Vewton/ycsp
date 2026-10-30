@@ -23,13 +23,13 @@ export const enMessages = {
   rule_experimental_override:
     'The radius-ratio rule would predict {rule_coordination_number}-fold coordination, but the measured structure is different, so the experimental data is used here (radius ratio {ratio}).',
   rule_fluorite_stoichiometry:
-    'The cation to anion ratio is {cation_count}:{anion_count} and the radius ratio {ratio} falls in the 8-coordination range: large ions form a face-centered cubic array and small ions fill the tetrahedral holes (fluorite type).',
+    'The cation to anion ratio is {cation_count}:{anion_count} and the radius ratio {ratio} falls in the 8-coordination range: the large ions form a face-centered cubic array (one at every corner and at the centre of every face), and the small ions fill the tetrahedral holes between four large ions. This is the fluorite type.',
   rule_antifluorite_stoichiometry:
     'The anion to cation ratio is {anion_count}:{cation_count}; the structure is the same as fluorite with the roles of the two ions swapped (antifluorite type).',
   rule_diamond_covalent:
     'This is a covalent crystal of one element: every atom shares electron pairs with 4 neighbours, forming the diamond structure.',
   rule_zinc_blende_covalent:
-    'The two elements differ by only {electronegativity_difference} in electronegativity, so they bond covalently and alternate in the zinc blende (cubic ZnS) arrangement.',
+    'The two elements differ by only {electronegativity_difference} in electronegativity (how strongly an atom pulls electrons), so they bond covalently and alternate in the zinc blende (cubic ZnS) arrangement.',
   rule_metal_experimental: 'The structure type of a metal comes from experiment, not from a formula.',
   // Prediction result: caveats
   caveat_radius_ratio_empirical:
@@ -39,7 +39,7 @@ export const enMessages = {
   caveat_confirmed_by_experiment:
     'The measured structure agrees with the reasoning above, so it can be trusted.',
   caveat_low_ionic_character:
-    'The electronegativity difference is only {difference} (below {threshold}), so the bonding is noticeably covalent; such crystals sit between ionic and covalent crystals.',
+    'The electronegativity difference (how differently the two atoms pull electrons) is only {difference} (below {threshold}), so the bonding is noticeably covalent; such crystals sit between ionic and covalent crystals.',
   caveat_metal_structure_experimental:
     'The packing of a metal cannot be derived from its composition alone; this structure type comes from experimental data.',
   caveat_stoichiometry_outside_band:
@@ -182,6 +182,30 @@ export const enMessages = {
     'This device cannot show the 3D model because the browser does not support WebGL. Please try another device or tell your teacher.',
   structure_render_failed:
     'The 3D model could not be loaded. Please refresh the page; if it keeps failing, tell your teacher.',
+  // Explanation
+  explain_title: 'What the result means',
+  explain_family_label: 'Crystal type',
+  explain_prototype_label: 'Structure type',
+  explain_coordination_label: 'Coordination number',
+  explain_coordination_note:
+    'Coordination number: how many nearest neighbours an atom or ion has.',
+  explain_cell_title: 'How big is the unit cell',
+  explain_edge_title: 'Edge lengths',
+  explain_angle_title: 'Angles between the edges',
+  explain_unit_note:
+    'Edge lengths are in Å (angstrom, 1 Å = 0.1 nm); angles are in degrees (°).',
+  explain_rule_title: 'Why this structure',
+  explain_caveats_title: 'Things to keep in mind',
+  family_ionic:
+    'Ionic crystal: positively charged cations and negatively charged anions held together by electric attraction.',
+  family_covalent: 'Covalent crystal: atoms are held together by shared electron pairs.',
+  family_metallic: 'Metallic crystal: metal atoms packed together by metallic bonding.',
+  cell_shape_cubic:
+    'This is a cubic unit cell: all three edges are equal and all angles are 90°.',
+  cell_shape_hexagonal:
+    'This is a hexagonal unit cell: two edges of the base are equal with a 120° angle, and the third edge is perpendicular to the base.',
+  cell_shape_general:
+    'The shape of the unit cell is set by the three edges and three angles below.',
   // Shared navigation
   back_home: 'Back to home',
   predict_another: 'Predict another',
