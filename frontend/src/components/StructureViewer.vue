@@ -116,11 +116,13 @@ onBeforeUnmount(() => {
         :aria-label="t('structure_canvas_label')"
       ></div>
 
-      <p v-if="isPreparing" class="structure-overlay">{{ t('structure_preparing') }}</p>
-      <p v-else-if="isUnavailable" class="status-error structure-error">
+      <p v-if="isPreparing" class="structure-overlay" role="status">
+        {{ t('structure_preparing') }}
+      </p>
+      <p v-else-if="isUnavailable" class="status-error structure-error" role="alert">
         {{ t('structure_webgl_unavailable') }}
       </p>
-      <p v-else-if="hasFailed" class="status-error structure-error">
+      <p v-else-if="hasFailed" class="status-error structure-error" role="alert">
         {{ t('structure_render_failed') }}
       </p>
     </div>

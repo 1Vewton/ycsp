@@ -9,7 +9,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { createTask, problemFromError, type TaskProblem } from '../api/tasks'
 import FormulaInput from '../components/FormulaInput.vue'
 import { validateFormulaSyntax } from '../formulaValidation'
-import { t } from '../locales'
+import { t, tCode } from '../locales'
 
 // 现成的例子按晶体类型分组：学生可以自己输入，也可以点一下填进输入框。
 interface ExampleGroup {
@@ -95,7 +95,7 @@ async function startPrediction(): Promise<void> {
         <span>{{ isSubmitting ? t('predict_starting') : t('predict_start_button') }}</span>
       </button>
       <p v-if="submitFailure" class="status-error" role="alert">
-        {{ t(submitFailure.code, submitFailure.params) }}
+        {{ tCode(submitFailure.code, submitFailure.params) }}
       </p>
     </form>
 

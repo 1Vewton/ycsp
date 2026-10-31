@@ -10,7 +10,7 @@ import { faKeyboard } from '@fortawesome/free-solid-svg-icons/faKeyboard'
 import { faStethoscope } from '@fortawesome/free-solid-svg-icons/faStethoscope'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
-import { t } from '../locales'
+import { t, tCode } from '../locales'
 
 // 后端应答统一为 { service, status, code, params? }（见 backend/README.md）。
 interface BackendResponse {
@@ -64,7 +64,7 @@ async function checkBackgroundServices(): Promise<void> {
   try {
     const response = await fetch('/api/ping-compute')
     const payload = (await response.json()) as BackendResponse
-    const text = t(payload.code, payload.params)
+    const text = tCode(payload.code, payload.params)
     if (response.ok && payload.status === 'ok') {
       checkMessage.value = text
     } else {

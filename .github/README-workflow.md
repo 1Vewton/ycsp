@@ -15,7 +15,7 @@
 | --- | --- |
 | compute | `uv sync --frozen`（锁文件与 `pyproject.toml` 一致）+ 能否 `import app.main` + `uv run pytest --cov=app`（覆盖率低于 90% 失败） |
 | backend | `gofmt` 无差异、`go vet`、`go build`、`go test -cover ./...` |
-| frontend | `npm ci`、`npm run type-check`、`npm run build` |
+| frontend | `npm ci`、`npm run check-codes`（后端每个 code 都有中英文案）、`npm run type-check`、`npm run build` |
 
 ## 本地对齐 CI
 

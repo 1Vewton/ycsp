@@ -90,6 +90,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check error code messages
+        run: npm run check-codes
+
       - name: Type check
         run: npm run type-check
 

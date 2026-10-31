@@ -16,8 +16,11 @@ Copy-Item .env.example .env
 | `npm run dev` | 开发服务器（<http://127.0.0.1:5173>） |
 | `npm run build` | 打包到 `dist/` |
 | `npm run type-check` | TypeScript 类型检查 |
+| `npm run check-codes` | 检查 backend / compute 的每个 code 都有中英文案（CI 也会跑） |
 
 开发时 Vite 把 `/api` 代理到 `VITE_BACKEND_BASE_URL`（默认 `http://127.0.0.1:8000`，可在 `frontend/.env` 覆盖），所以用前请先启动 compute 与 backend。
+
+错误码文案检查脚本在 `scripts/`，见 [scripts/README.md](./scripts/README.md)。
 
 ## 页面与路由
 

@@ -25,7 +25,7 @@ import {
   type TaskSnapshot,
   type TaskStatus,
 } from '../api/tasks'
-import { t } from '../locales'
+import { t, tCode } from '../locales'
 
 // 计算通常一百多毫秒；一秒刷新一次足够，也不会给后端添压力。
 const POLL_INTERVAL_MS = 1000
@@ -261,7 +261,7 @@ watch(taskId, startWatching)
 
       <p v-if="isWaiting" class="task-hint">{{ t('result_polling_hint') }}</p>
       <p v-if="task.status === 'failed' && task.error" class="status-error" role="alert">
-        {{ t(task.error.code, task.error.params) }}
+        {{ tCode(task.error.code, task.error.params) }}
       </p>
       <p v-if="task.status === 'failed'" class="task-hint">{{ t('result_failed_hint') }}</p>
       <p v-if="task.status === 'cancelled'" class="task-hint">{{ t('result_cancelled_hint') }}</p>
@@ -280,12 +280,12 @@ watch(taskId, startWatching)
         <span>{{ isCancelling ? t('result_cancelling') : t('result_cancel_button') }}</span>
       </button>
       <p v-if="cancelFailure" class="status-error" role="alert">
-        {{ t(cancelFailure.code, cancelFailure.params) }}
+        {{ tCode(cancelFailure.code, cancelFailure.params) }}
       </p>
     </section>
 
     <template v-if="loadFailure">
-      <p class="status-error" role="alert">{{ t(loadFailure.code, loadFailure.params) }}</p>
+      <p class="status-error" role="alert">{{ tCode(loadFailure.code, loadFailure.params) }}</p>
       <button
         v-if="hasValidTaskId"
         type="button"
@@ -302,7 +302,7 @@ watch(taskId, startWatching)
       <p v-if="isLoadingStructure" class="task-hint">{{ t('structure_loading') }}</p>
       <template v-else-if="structureFailure">
         <p class="status-error" role="alert">
-          {{ t(structureFailure.code, structureFailure.params) }}
+          {{ tCode(structureFailure.code, structureFailure.params) }}
         </p>
         <button type="button" class="secondary-button structure-retry" @click="loadStructure">
           <FontAwesomeIcon :icon="faRotateRight" aria-hidden="true" />

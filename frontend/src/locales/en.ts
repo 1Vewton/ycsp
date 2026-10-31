@@ -13,9 +13,10 @@ export const enMessages = {
     'Failed to read the response from the background computing service. Please try again or tell your teacher.',
   compute_invalid_json:
     'The response from the background computing service could not be read. Please tell your teacher.',
-  unknown_code: 'Unexpected response from the backend (code {code}).',
+  unknown_code:
+    'The backend returned a message we cannot explain yet (code {code}). Please refresh the page; if it keeps happening, tell your teacher.',
   request_failed:
-    'Cannot reach the backend. Please make sure the data layer and the compute layer are running.',
+    'Cannot reach the background services. Please refresh the page; if it keeps failing, tell your teacher.',
   // Prediction result: reasoning (rule)
   prediction_ready: 'The predicted structure is ready.',
   rule_radius_ratio:
@@ -61,7 +62,7 @@ export const enMessages = {
     'The radius ratio {ratio} is too small and would need 3-fold coordination, which is not covered yet.',
   request_invalid_body: 'The request was not well formed. Please refresh the page and try again.',
   internal_error:
-    'The compute layer hit an unexpected error. Please try again later; if it keeps failing, tell your teacher.',
+    'The background service hit an unexpected error. Please try again later; if it keeps failing, tell your teacher.',
   // Task endpoints
   task_created: 'Task created and queued for computing.',
   task_ok: 'Task status loaded.',
@@ -73,7 +74,7 @@ export const enMessages = {
   task_formula_empty: 'Please enter a chemical formula first, for example NaCl, CaF2 or C.',
   task_formula_too_long: 'The formula is too long (at most {max_length} characters).',
   compute_no_result:
-    'The compute layer returned no structure. Please try again later or tell your teacher.',
+    'The background computing service returned no structure. Please try again later or tell your teacher.',
   // Task statuses (shown in results)
   task_status_pending: 'Queued',
   task_status_running: 'Computing',

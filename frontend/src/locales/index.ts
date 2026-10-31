@@ -71,6 +71,21 @@ export function t(tag: string, params: TextParams = {}): string {
   return fillPlaceholders(template, params)
 }
 
+/**
+ * 取后端 / 数据处理层 code 对应的文案。
+ *
+ * 与 t() 的区别：没收录的 code 不把内部编号原样显示给学生，而是显示 unknown_code；
+ * 同时仍然 console.warn，开发阶段能发现漏掉的文案。
+ */
+export function tCode(code: string, params: TextParams = {}): string {
+  const template = findTemplate(code)
+  if (template === undefined) {
+    console.warn(`[ycsp] 缺少 code 文案：${code}`)
+    return t('unknown_code', { code })
+  }
+  return fillPlaceholders(template, params)
+}
+
 function findTemplate(tag: string): string | undefined {
   for (const locale of [activeLocale.value, FALLBACK_LOCALE]) {
     const template = MESSAGE_TABLES[locale][tag]

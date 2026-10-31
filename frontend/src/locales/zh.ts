@@ -10,8 +10,9 @@ export const zhMessages = {
   compute_bad_status: '后台计算服务返回了异常状态 {status_code}，请告诉老师。',
   compute_read_failed: '读取后台计算服务的应答时出错，请稍后重试或告诉老师。',
   compute_invalid_json: '后台计算服务的应答看不懂，请告诉老师。',
-  unknown_code: '出现了未预期的错误（代码 {code}）。',
-  request_failed: '暂时联系不上后端，请确认数据管理层与数据处理层都已启动。',
+  unknown_code:
+    '平台返回了一条暂时看不懂的信息（代码 {code}），请刷新页面重试；如果一直出现，请告诉老师。',
+  request_failed: '暂时连不上后台服务，请刷新页面重试；如果一直不行，请告诉老师。',
   // 预测结果：结构依据（rule）
   prediction_ready: '已生成预测结果。',
   rule_radius_ratio:
@@ -48,7 +49,7 @@ export const zhMessages = {
     '暂时还不能处理 {formula} 这类物质。目前支持：离子晶体（如 NaCl、CsCl、CaF2）、共价晶体（C、Si、Ge、SiC）、金属（如 Cu、Fe、Mg）。',
   radius_ratio_too_small: '半径比 {ratio} 太小，需要 3 配位的结构，本平台暂不覆盖。',
   request_invalid_body: '请求格式不正确，请刷新页面后重试。',
-  internal_error: '数据处理层出现了意外错误，请稍后再试；如果一直失败，请告诉老师。',
+  internal_error: '后台服务出现了意外错误，请稍后再试；如果一直失败，请告诉老师。',
   // 任务接口
   task_created: '任务已创建，正在排队计算。',
   task_ok: '已获取任务状态。',
@@ -59,7 +60,7 @@ export const zhMessages = {
   task_cancel_conflict: '任务已经开始或结束，不能再取消。',
   task_formula_empty: '请先输入化学式，例如 NaCl、CaF2 或 C。',
   task_formula_too_long: '化学式太长了（最多 {max_length} 个字符），请检查一下。',
-  compute_no_result: '数据处理层没有返回结构，请稍后重试或告诉老师。',
+  compute_no_result: '后台计算服务没有返回结构，请稍后重试或告诉老师。',
   // 任务状态（结果显示用）
   task_status_pending: '排队中',
   task_status_running: '计算中',
