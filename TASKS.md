@@ -101,7 +101,7 @@
 - [x] **3.4** 晶体结构三维可视化（3Dmol.js；结果页按需加载，WebGL 不可用时保留文字说明）
 - [x] **3.5** 结果解释区：把结构类型、晶胞参数用中学生能懂的话讲清楚
 - [x] **3.6** 错误提示：后端每个 `code` 都有对应文案，并按当前语言显示（`npm run check-codes` 在 CI 中守护；未知 code 用 `unknown_code` 兜底）
-- [ ] **3.7** 写 `frontend/README.md`：职责、页面结构、与后端接口约定、限制
+- [x] **3.7** 写 `frontend/README.md`：职责、页面结构、与后端接口约定、限制
 - [x] **3.8** 语言切换：界面可切换中/英（`frontend/src/locales/` 分开存放 `zh.ts` / `en.ts`，`t(tag, params)` 取词、缺翻译回退英文、选择记在 `localStorage`）
 
 ## 阶段 4：端到端集成
@@ -110,7 +110,7 @@
 
 **验收标准**：从界面输入到看到结果，全流程无手工干预、无英文报错。
 
-- [ ] **4.1** 在真实数据上跑通“输入 → 计算 → 存储 → 展示”完整流程
+- [x] **4.1** 在真实数据上跑通“输入 → 计算 → 存储 → 展示”完整流程
 - [ ] **4.2** 处理并发与超时（多人同时用、计算卡住时给出中文提示）
 - [ ] **4.3** 跨层错误传播测试：Python 报错，前端要显示中文解释
 - [ ] **4.4** 用课本经典例子做端到端回归测试
@@ -173,10 +173,10 @@
 | 2026-10-25 | 3 | 完成 Q4 + 3.4：可视化选 3Dmol.js（BSD-3、自带晶胞与元素配色）；结果页在任务成功后取 `/api/tasks/:id/result`，由 `structureCif.ts` 把晶胞参数 + 分数坐标拼成 P1 最小 CIF，3Dmol 再按需加载（独立 chunk ≈ 533 kB）画球棍与晶胞棱框，提供重置视角、拖动/滚轮提示、WebGL 不可用与加载失败提示 | CIF 链路用 jsdom + 3Dmol 实测通过（NaCl 2 原子、a = 5.66 Å）；首页与预测页主包只增 6.6 kB；3Dmol 内部使用 `eval`，严格 CSP 部署需注意 |
 | 2026-10-25 | 3 | 完成 3.5：结果解释区——`structureExplanation.ts` 判断晶胞形状（立方 / 六方 / 普通）并格式化棱长与夹角，`StructureExplanation.vue` 展示晶体类型、结构类型、配位数（含术语解释）、晶胞参数、判断依据与注意事项；顺带把“面心立方 / 四面体空隙 / 电负性”等术语补了通俗解释 | 解释内容全部来自后端 rule / caveats，不在前端重写结论；无注意事项时整块隐藏 |
 | 2026-10-25 | 3 | 完成 3.6：错误提示——审计 backend 29 + compute 26 个 code，全部有中英文案；新增 `tCode()`（未收录 code 显示 `unknown_code`，不把内部编号丢给学生）并接入首页 / 预测页 / 结果页；新增 `frontend/scripts/check-codes.mjs` 与 `npm run check-codes`，CI 在新增 code 漏翻时直接失败；真实跑通 `formula_charge_unbalanced`、`element_not_supported`、`composition_not_supported`、`task_not_found`、`task_formula_empty` / `task_formula_too_long`、`compute_unreachable` | 学生可见提示里去掉“数据管理层 / 数据处理层”等架构词；三维错误补 `role="alert"`、加载中补 `role="status"`；检查脚本在“故意漏翻”的镜像里实测会退出 1 |
-
-
-
-
-
-
+| 2026-11-02 | 3 | 补前端自动化测试：接入 Vitest + @vue/test-utils + jsdom，覆盖写法校验、CIF 拼接、结果解释、语言包、任务接口，以及输入框与结果页（轮询 / 取消 / 重试） | `npm run test` 共 62 个用例；不依赖真实后端；CI 增加测试步骤；说明见 `frontend/tests/README.md` |
+| 2026-11-02 | 3 | 补前端登录界面：登录与注册共用 `LoginView`，顶栏显示登录入口或昵称 + 退出；新增 `src/api/client.ts`（与任务共用信封 / 错误）、`src/api/auth.ts`、`src/session.ts`；登录后回跳站内 redirect，站外地址忽略 | 表单错误全部走 code + 中英文案；密码规则逐条显示；新增 30 个测试（账号接口 8、会话 7、登录页 11、顶栏 3、密码规则文案 1），前端共 92 个用例 |
+| 2026-11-02 | 2 | 修复 nginx 反向代理下限流把所有人当成同一 IP：新增 `YCSP_TRUSTED_PROXIES`（默认空，只信任配置的代理），从 `X-Forwarded-For` 右往左取第一个不受信地址；拒绝 `0.0.0.0/0`，头部异常退回直连地址 | 新增 16 个测试（地址解析 11、限流集成 2、配置解析 3）；backend README 增加 nginx 部署示例 |
+| 2026-11-02 | — | 三层日志追踪：统一 `X-Request-ID`；前端每次请求生成并记录，数据管理层中间件沿用/生成并写回，数据处理层沿用/生成并记录；异步任务把编号存进 `prediction_tasks.trace_id`，worker 调计算层时继续使用 | 新增 18 个测试（后端 10、计算层 5、前端 3）；日志不记请求体与密码；按 request_id 可串起三层 |
+| 2026-11-02 | 3 | 完成 3.7：`frontend/README.md` 补齐职责、页面结构（4 个路由表）、与后端接口约定（统一信封 / code 文案 / Cookie / 异步任务 / X-Request-ID / 同源部署）与已知限制；同步 `src/README.md` 的 api 目录说明 | 逐项对照 3.7 原文检查；文档链接到 backend README、src/api、src/views、tests |
+| 2026-11-05 | 4 | 完成 4.1：真实三层跑通“界面输入 → 计算 → 存储 → 展示”。临时 SQLite + 内存会话启动 compute 8001、backend 8000、Vite 5173；Playwright 驱动预测页输入 CaF2 并点击预测，结果页正常显示 | 任务 succeeded（20 ms）；fluorite、配位数 8、a=5.381 Å、12 原子；DB trace_id=web-e759… 与后端/计算层日志一致；界面反馈“写法没问题，可以继续”，结果页含“已完成 / 萤石型 / 结果解释 / CaF2 / 5.38”与三维晶胞；控制台仅未登录 401 与 favicon 404，无页面报错；本次为一次性验收脚本，4.4 再固化为可重复回归测试 |
 
