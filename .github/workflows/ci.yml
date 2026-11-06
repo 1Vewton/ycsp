@@ -93,6 +93,9 @@ jobs:
       - name: Check error code messages
         run: npm run check-codes
 
+      - name: Test
+        run: npm run test
+
       - name: Type check
         run: npm run type-check
 

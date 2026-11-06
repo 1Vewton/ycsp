@@ -1,18 +1,43 @@
 <script setup lang="ts">
-import { watchEffect } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
+import { onMounted, ref, watchEffect } from 'vue'
+import { RouterLink, RouterView, useRoute } from 'vue-router'
 
 import { faCubes } from '@fortawesome/free-solid-svg-icons/faCubes'
 import { faFlask } from '@fortawesome/free-solid-svg-icons/faFlask'
 import { faHouse } from '@fortawesome/free-solid-svg-icons/faHouse'
+import { faRightFromBracket } from '@fortawesome/free-solid-svg-icons/faRightFromBracket'
+import { faRightToBracket } from '@fortawesome/free-solid-svg-icons/faRightToBracket'
+import { faUser } from '@fortawesome/free-solid-svg-icons/faUser'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
-import { AVAILABLE_LOCALES, currentLocale, LOCALE_NAMES, setLocale, t } from './locales'
+import { problemFromError, type ApiProblem } from './api/client'
+import { AVAILABLE_LOCALES, currentLocale, LOCALE_NAMES, setLocale, t, tCode } from './locales'
+import { isRestoringSession, restoreSession, signOut, signedInUser } from './session'
+
+const route = useRoute()
+const isSigningOut = ref(false)
+const signOutFailure = ref<ApiProblem | null>(null)
 
 // 浏览器标签页标题跟随界面语言。
 watchEffect(() => {
   document.title = t('page_title')
 })
+
+onMounted(() => {
+  void restoreSession()
+})
+
+async function leaveAccount(): Promise<void> {
+  isSigningOut.value = true
+  signOutFailure.value = null
+  try {
+    await signOut()
+  } catch (error) {
+    signOutFailure.value = problemFromError(error)
+  } finally {
+    isSigningOut.value = false
+  }
+}
 </script>
 
 <template>
@@ -33,6 +58,37 @@ watchEffect(() => {
             <FontAwesomeIcon :icon="faFlask" aria-hidden="true" />
             <span>{{ t('nav_predict') }}</span>
           </RouterLink>
+
+          <template v-if="!isRestoringSession">
+            <RouterLink
+              v-if="!signedInUser"
+              class="nav-link"
+              :to="{ name: 'login', query: { redirect: route.fullPath } }"
+            >
+              <FontAwesomeIcon :icon="faRightToBracket" aria-hidden="true" />
+              <span>{{ t('nav_login') }}</span>
+            </RouterLink>
+            <template v-else>
+              <RouterLink
+                class="nav-link"
+                :to="{ name: 'login' }"
+                :aria-label="t('nav_account_label', { name: signedInUser.display_name })"
+                :title="signedInUser.display_name"
+              >
+                <FontAwesomeIcon :icon="faUser" aria-hidden="true" />
+                <span class="nav-account-name">{{ signedInUser.display_name }}</span>
+              </RouterLink>
+              <button
+                type="button"
+                class="nav-link nav-signout"
+                :disabled="isSigningOut"
+                @click="leaveAccount"
+              >
+                <FontAwesomeIcon :icon="faRightFromBracket" aria-hidden="true" />
+                <span>{{ isSigningOut ? t('nav_signing_out') : t('nav_logout') }}</span>
+              </button>
+            </template>
+          </template>
         </nav>
 
         <div class="locale-switcher" role="group" :aria-label="t('language_switcher_label')">
@@ -49,6 +105,9 @@ watchEffect(() => {
           </button>
         </div>
       </div>
+      <p v-if="signOutFailure" class="header-alert" role="alert">
+        {{ tCode(signOutFailure.code, signOutFailure.params) }}
+      </p>
     </header>
 
     <main class="app-main">
@@ -133,5 +192,32 @@ watchEffect(() => {
   color: #ffffff;
   background-color: var(--color-primary);
   border-color: var(--color-primary);
+}
+
+.nav-account-name {
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-signout {
+  font-family: inherit;
+  font-size: inherit;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.nav-signout:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.header-alert {
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: 0 1.5rem 0.75rem;
+  color: var(--color-error-text);
 }
 </style>

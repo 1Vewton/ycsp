@@ -7,12 +7,15 @@ import type { RouteRecordRaw } from 'vue-router'
 import { createRouter, createWebHashHistory } from 'vue-router'
 
 import HomeView from './views/HomeView.vue'
+import LoginView from './views/LoginView.vue'
 import PredictView from './views/PredictView.vue'
 import ResultView from './views/ResultView.vue'
 
 const routes: RouteRecordRaw[] = [
   { path: '/', name: 'home', component: HomeView },
   { path: '/predict', name: 'predict', component: PredictView },
+  // 登录与注册共用一页：学生不用在两张表单之间找入口。
+  { path: '/login', name: 'login', component: LoginView },
   // 任务编号写在地址里：刷新结果页还能回到同一个任务。
   { path: '/result/:taskId', name: 'result', component: ResultView },
   // 地址输错时不要停在空白页，直接回首页。

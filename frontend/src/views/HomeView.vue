@@ -10,6 +10,7 @@ import { faKeyboard } from '@fortawesome/free-solid-svg-icons/faKeyboard'
 import { faStethoscope } from '@fortawesome/free-solid-svg-icons/faStethoscope'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
+import { createRequestId, REQUEST_ID_HEADER } from '../api/requestId'
 import { t, tCode } from '../locales'
 
 // 后端应答统一为 { service, status, code, params? }（见 backend/README.md）。
@@ -60,10 +61,17 @@ async function checkBackgroundServices(): Promise<void> {
   isChecking.value = true
   checkMessage.value = ''
   checkError.value = ''
+  const requestId = createRequestId()
+  console.debug(`[ycsp] health check start request_id=${requestId}`)
 
   try {
-    const response = await fetch('/api/ping-compute')
+    const response = await fetch('/api/ping-compute', {
+      headers: { [REQUEST_ID_HEADER]: requestId },
+    })
     const payload = (await response.json()) as BackendResponse
+    console.debug(
+      `[ycsp] health check done request_id=${requestId} status=${response.status}`,
+    )
     const text = tCode(payload.code, payload.params)
     if (response.ok && payload.status === 'ok') {
       checkMessage.value = text
@@ -72,7 +80,7 @@ async function checkBackgroundServices(): Promise<void> {
     }
   } catch (error) {
     // 技术细节只打印到控制台，界面上只显示用户看得懂的一句话。
-    console.error(error)
+    console.error(`[ycsp] health check failed request_id=${requestId}`, error)
     checkError.value = t('request_failed')
   } finally {
     isChecking.value = false

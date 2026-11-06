@@ -5,14 +5,15 @@
 | 文件 | 作用 |
 | --- | --- |
 | `main.ts` | 入口：挂载 Vue 应用，装上路由与全局样式 |
-| `App.vue` | 应用外壳：顶栏（标题 / 导航 / 语言切换）+ 路由出口 |
-| `router.ts` | 路由表：首页、预测页、结果页（hash 模式） |
+| `App.vue` | 应用外壳：顶栏（标题 / 导航 / 登录状态 / 语言切换）+ 路由出口 |
+| `router.ts` | 路由表：首页、预测页、结果页、登录页（hash 模式） |
+| `session.ts` | 全站登录状态：当前账号、恢复 / 登录 / 注册 / 退出，供顶栏与登录页共用 |
 | `styles.css` | 全站共用样式变量与基础类（页面容器、按钮、卡片、状态提示） |
 | `formulaValidation.ts` | 化学式写法校验（纯函数）：字符、括号、下标；元素与电荷留给数据处理层 |
 | `structureCif.ts` | 把“晶胞参数 + 分数坐标”拼成 3Dmol 能读的最小 CIF（P1） |
 | `structureExplanation.ts` | 结果解释用的纯函数：晶胞形状判断、棱长与夹角格式化 |
 | `3dmol-es6.d.ts` | 声明 3Dmol 的 ES 模块构建，复用包自带类型 |
-| `api/` | 数据管理层接口封装（任务创建 / 查询 / 取消 / 结构结果），见 [api/README.md](./api/README.md) |
+| `api/` | 数据管理层接口封装（任务、账号、请求编号与统一错误），见 [api/README.md](./api/README.md) |
 | `components/` | 页面共用组件，见 [components/README.md](./components/README.md) |
 | `views/` | 页面组件，见 [views/README.md](./views/README.md) |
 | `locales/` | 语言包与取词入口 `t()`，见 [locales/README.md](./locales/README.md) |

@@ -1,16 +1,17 @@
 // 任务接口的前端客户端：只负责发请求、把应答换成结构化数据。
 //
 // 应答形状见 backend/README.md《对外接口》：{ service, status, code, params?, task? }。
-// 失败时抛出 ApiError，页面用 code 从语言包取文案——请求层不写死任何一句话。
+// 统一信封与错误转换在 ./client.ts；页面用 code 从语言包取文案——请求层不写死任何一句话。
+
+import { ApiError, problemFromError, requestApi, type ApiProblem } from './client'
+
+// 兼容原来的引用方式：页面与测试从任务模块拿 ApiError / TaskProblem 也能工作。
+export { ApiError, problemFromError }
+export type { ApiProblem }
+export type TaskProblem = ApiProblem
 
 /** 任务的五种状态，与后端 prediction_tasks.status 一致。 */
 export type TaskStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
-
-/** 一条可翻译的问题：code 决定说哪句话，params 是要填进句子的值。 */
-export interface TaskProblem {
-  code: string
-  params?: Record<string, unknown>
-}
 
 /** 任务快照；字段名保持后端 JSON 的写法，少一层转换。 */
 export interface TaskSnapshot {
@@ -40,7 +41,7 @@ export interface StructureCell {
   angle_gamma_degree: number
 }
 
-/** 任务成功后的结构结果；rule 与 caveats 留给结果解释使用（3.5）。 */
+/** 任务成功后的结构结果；rule 与 caveats 留给结果解释使用。 */
 export interface StructureResult {
   family: string
   prototype: string
@@ -51,32 +52,9 @@ export interface StructureResult {
   caveats: TaskProblem[]
 }
 
-/** 后端拒绝请求或网络失败时抛出的错误。 */
-export class ApiError extends Error {
-  readonly problem: TaskProblem
-
-  constructor(problem: TaskProblem) {
-    super(problem.code)
-    this.name = 'ApiError'
-    this.problem = problem
-  }
-}
-
-/** 把任意异常换成可翻译的问题；技术细节只留在控制台。 */
-export function problemFromError(error: unknown): TaskProblem {
-  if (error instanceof ApiError) {
-    return error.problem
-  }
-  console.error(error)
-  return { code: 'request_failed' }
-}
-
 const TASKS_PATH = '/api/tasks'
 
 interface TaskEnvelope {
-  status?: string
-  code?: string
-  params?: Record<string, unknown>
   task?: TaskSnapshot
   result?: StructureResult
 }
@@ -106,7 +84,7 @@ export function fetchTaskResult(taskId: number): Promise<StructureResult> {
 }
 
 async function requestTask(url: string, init: RequestInit): Promise<TaskSnapshot> {
-  const envelope = await requestEnvelope(url, init)
+  const envelope = await requestApi<TaskEnvelope>(url, init)
   if (envelope.task === undefined) {
     throw new ApiError({ code: 'internal_error' })
   }
@@ -114,39 +92,9 @@ async function requestTask(url: string, init: RequestInit): Promise<TaskSnapshot
 }
 
 async function requestResult(url: string, init: RequestInit): Promise<StructureResult> {
-  const envelope = await requestEnvelope(url, init)
+  const envelope = await requestApi<TaskEnvelope>(url, init)
   if (envelope.result === undefined) {
     throw new ApiError({ code: 'internal_error' })
   }
   return envelope.result
-}
-
-async function requestEnvelope(url: string, init: RequestInit): Promise<TaskEnvelope> {
-  let response: Response
-  try {
-    response = await fetch(url, init)
-  } catch (error) {
-    console.error(error)
-    throw new ApiError({ code: 'request_failed' })
-  }
-
-  const envelope = await readEnvelope(response)
-  if (!response.ok || envelope.status !== 'ok') {
-    throw new ApiError({
-      code: envelope.code ?? 'request_failed',
-      params: envelope.params,
-    })
-  }
-  return envelope
-}
-
-// 应答不是 JSON 时（例如代理返回了一页 HTML），也给出可翻译的错误，
-// 而不是让页面抛出一个学生看不懂的语法异常。
-async function readEnvelope(response: Response): Promise<TaskEnvelope> {
-  try {
-    return (await response.json()) as TaskEnvelope
-  } catch (error) {
-    console.error(error)
-    return { status: 'error', code: 'internal_error' }
-  }
 }
