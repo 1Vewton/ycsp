@@ -3,6 +3,7 @@ package tasks
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/1Vewton/ycsp/backend/internal/codes"
 	"github.com/1Vewton/ycsp/backend/internal/compute"
 	"github.com/1Vewton/ycsp/backend/internal/store"
+	"github.com/1Vewton/ycsp/backend/internal/traceid"
 )
 
 // work 从队列取任务并执行，直到 ctx 取消。
@@ -38,6 +40,14 @@ func (service *Service) runTask(ctx context.Context, taskID uint) {
 		return // 已被取消或删除
 	}
 
+	// 异步任务沿用创建任务时的编号；老数据没有编号时用任务编号兜底。
+	traceID := task.TraceID
+	if traceID == "" {
+		traceID = fmt.Sprintf("task-%d", task.ID)
+	}
+	ctx = traceid.With(ctx, traceID)
+	log.Printf("tasks: start trace_id=%s task_id=%d", traceID, taskID)
+
 	startedAt := time.Now()
 	if task.StartedAt != nil {
 		startedAt = *task.StartedAt
@@ -49,14 +59,26 @@ func (service *Service) runTask(ctx context.Context, taskID uint) {
 
 	if predictionErr != nil {
 		code, params := compute.Describe(predictionErr)
-		service.fail(taskID, code, params, finishedAt, durationMilliseconds)
+		log.Printf(
+			"tasks: failed trace_id=%s task_id=%d code=%s duration_ms=%d",
+			traceID, taskID, code, durationMilliseconds,
+		)
+		service.fail(traceID, taskID, code, params, finishedAt, durationMilliseconds)
 		return
 	}
 
 	if err := service.succeed(taskID, prediction, finishedAt, durationMilliseconds); err != nil {
-		log.Printf("tasks: save result of %d: %v", taskID, err)
-		service.fail(taskID, codes.InternalError, nil, finishedAt, durationMilliseconds)
+		log.Printf(
+			"tasks: save result trace_id=%s task_id=%d error=%v",
+			traceID, taskID, err,
+		)
+		service.fail(traceID, taskID, codes.InternalError, nil, finishedAt, durationMilliseconds)
+		return
 	}
+	log.Printf(
+		"tasks: succeeded trace_id=%s task_id=%d duration_ms=%d",
+		traceID, taskID, durationMilliseconds,
+	)
 }
 
 // claim 把 pending 改成 running；返回 nil 表示任务已被取消或不存在。
@@ -114,13 +136,17 @@ func (service *Service) succeed(
 
 // fail 记录失败原因：code 与 params 是语言无关的，文案由前端翻译。
 func (service *Service) fail(
-	taskID uint, code string, params map[string]any, finishedAt time.Time, durationMilliseconds int64,
+	traceID string, taskID uint, code string, params map[string]any,
+	finishedAt time.Time, durationMilliseconds int64,
 ) {
 	encodedParams := []byte("{}")
 	if len(params) > 0 {
 		encoded, err := json.Marshal(params)
 		if err != nil {
-			log.Printf("tasks: encode error params of %d: %v", taskID, err)
+			log.Printf(
+				"tasks: encode error params trace_id=%s task_id=%d error=%v",
+				traceID, taskID, err,
+			)
 		} else {
 			encodedParams = encoded
 		}
@@ -136,6 +162,9 @@ func (service *Service) fail(
 			"duration_ms":  durationMilliseconds,
 		})
 	if update.Error != nil {
-		log.Printf("tasks: mark %d failed: %v", taskID, update.Error)
+		log.Printf(
+			"tasks: mark failed trace_id=%s task_id=%d error=%v",
+			traceID, taskID, update.Error,
+		)
 	}
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"net/netip"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -29,12 +30,18 @@ type AuthOptions struct {
 	SecureCookies   bool
 	// LoginGuard 为 nil 时不做登录限流（只在校验或测试里这样用）。
 	LoginGuard *ratelimit.Guard
+	// TrustedProxies 是允许提供 X-Forwarded-For 的反向代理地址 / CIDR。
+	// 为空表示不信任任何代理，只按直连地址限流（安全默认）。
+	TrustedProxies []netip.Prefix
 }
 
 // NewRouter 注册数据管理层的全部路由。
 func NewRouter(options Options) *gin.Engine {
 	router := gin.New()
-	router.Use(gin.Logger(), recoveryMiddleware())
+	// 先确定编号，再记录请求：日志与 panic 兜底里都能拿到同一个 request_id。
+	// 客户端地址与登录限流共用同一套可信代理规则，日志里看到的 IP 就是限流用的 IP。
+	addresses := newClientAddressResolver(options.Auth.TrustedProxies)
+	router.Use(requestIDMiddleware(), requestLogger(addresses), recoveryMiddleware())
 
 	router.GET("/api/health", handleBackendHealth)
 

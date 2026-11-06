@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,6 +16,7 @@ import (
 	"github.com/1Vewton/ycsp/backend/internal/ratelimit"
 	"github.com/1Vewton/ycsp/backend/internal/session"
 	"github.com/1Vewton/ycsp/backend/internal/store"
+	"github.com/1Vewton/ycsp/backend/internal/traceid"
 	"github.com/1Vewton/ycsp/backend/internal/users"
 )
 
@@ -33,6 +33,7 @@ type authHandlers struct {
 	guard        *ratelimit.Guard
 	lifetime     time.Duration
 	secureCookie bool
+	addresses    clientAddressResolver
 }
 
 func newAuthHandlers(options AuthOptions) authHandlers {
@@ -42,6 +43,7 @@ func newAuthHandlers(options AuthOptions) authHandlers {
 		guard:        options.LoginGuard,
 		lifetime:     options.SessionLifetime,
 		secureCookie: options.SecureCookies,
+		addresses:    newClientAddressResolver(options.TrustedProxies),
 	}
 }
 
@@ -111,7 +113,7 @@ func (handlers authHandlers) signIn(context *gin.Context) {
 	}
 
 	account := strings.TrimSpace(request.DisplayName)
-	address := clientAddress(context)
+	address := handlers.addresses.Address(context.Request)
 	requestContext := context.Request.Context()
 
 	if retryAfter, blocked := handlers.blockedFor(requestContext, account, address); blocked {
@@ -139,7 +141,10 @@ func (handlers authHandlers) signIn(context *gin.Context) {
 	if handlers.guard != nil {
 		// 登录成功只清这个昵称的计数；清零失败不影响本次登录。
 		if err := handlers.guard.ResetAccount(requestContext, account); err != nil {
-			log.Printf("%s reset login counter: %v", ServiceName, err)
+			log.Printf(
+				"%s reset login counter: request_id=%s error=%v",
+				ServiceName, traceid.From(requestContext), err,
+			)
 		}
 	}
 
@@ -166,7 +171,10 @@ func (handlers authHandlers) blockedFor(
 
 	retryAfter, err := handlers.guard.Check(ctx, account, address)
 	if err != nil {
-		log.Printf("%s login guard check: %v", ServiceName, err)
+		log.Printf(
+			"%s login guard check: request_id=%s error=%v",
+			ServiceName, traceid.From(ctx), err,
+		)
 		return 0, false
 	}
 	return retryAfter, retryAfter > 0
@@ -182,7 +190,10 @@ func (handlers authHandlers) recordFailure(
 
 	retryAfter, err := handlers.guard.RecordFailure(ctx, account, address)
 	if err != nil {
-		log.Printf("%s login guard record: %v", ServiceName, err)
+		log.Printf(
+			"%s login guard record: request_id=%s error=%v",
+			ServiceName, traceid.From(ctx), err,
+		)
 		return 0, false
 	}
 	return retryAfter, retryAfter > 0
@@ -333,16 +344,6 @@ func passwordRulesToStrings(rules []auth.PasswordRule) []string {
 		names = append(names, string(rule))
 	}
 	return names
-}
-
-// clientAddress 取直连地址（不带端口）。这里刻意不看 X-Forwarded-For：
-// 那个头可以随便伪造，用它统计等于把限流交给攻击者；部署到反向代理后需要另配可信代理。
-func clientAddress(context *gin.Context) string {
-	host, _, err := net.SplitHostPort(context.Request.RemoteAddr)
-	if err != nil {
-		return context.Request.RemoteAddr
-	}
-	return host
 }
 
 // writeTooManyAttempts 返回 429，并给出还要等多久（同时带标准的 Retry-After 头）。

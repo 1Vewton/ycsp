@@ -50,6 +50,30 @@ func TestPingComputeForwardsUpstreamHealth(t *testing.T) {
 	}
 }
 
+func TestPingComputePropagatesRequestID(t *testing.T) {
+	var receivedRequestID string
+	server := newFakeComputeServer(t, func(w http.ResponseWriter, request *http.Request) {
+		receivedRequestID = request.Header.Get("X-Request-ID")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(
+			`{"service":"fake-compute","version":"9.9.9","status":"ok","code":"compute_healthy"}`,
+		))
+	})
+
+	router := api.NewRouter(api.Options{ComputeBaseURL: server.URL})
+	request := httptest.NewRequest(http.MethodGet, "/api/ping-compute", nil)
+	request.Header.Set("X-Request-ID", "web-health-123")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	if receivedRequestID != "web-health-123" {
+		t.Errorf("upstream X-Request-ID = %q, want web-health-123", receivedRequestID)
+	}
+}
+
 func TestPingComputeReportsBadStatusCode(t *testing.T) {
 	server := newFakeComputeServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)

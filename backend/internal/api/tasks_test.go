@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/1Vewton/ycsp/backend/internal/api"
 	"github.com/1Vewton/ycsp/backend/internal/codes"
 	"github.com/1Vewton/ycsp/backend/internal/compute"
@@ -59,6 +61,15 @@ func successPredictor() stubPredictor {
 func newTaskRouter(t *testing.T, predictor tasks.Predictor, startWorkers bool) http.Handler {
 	t.Helper()
 
+	router, _ := newTaskRouterWithDatabase(t, predictor, startWorkers)
+	return router
+}
+
+func newTaskRouterWithDatabase(
+	t *testing.T, predictor tasks.Predictor, startWorkers bool,
+) (http.Handler, *gorm.DB) {
+	t.Helper()
+
 	database, err := store.Open(store.Settings{
 		Driver: store.DriverSQLite,
 		DSN:    filepath.Join(t.TempDir(), "api-tasks.db"),
@@ -86,10 +97,11 @@ func newTaskRouter(t *testing.T, predictor tasks.Predictor, startWorkers bool) h
 		})
 	}
 
-	return api.NewRouter(api.Options{
+	router := api.NewRouter(api.Options{
 		ComputeBaseURL: "http://127.0.0.1:1",
 		Tasks:          service,
 	})
+	return router, database
 }
 
 func performRequest(
@@ -306,5 +318,32 @@ func TestCancelPendingTaskAndRejectTheSecondAttempt(t *testing.T) {
 	params, ok := conflictPayload["params"].(map[string]any)
 	if !ok || params["status"] != store.TaskStatusCancelled {
 		t.Errorf("params = %v, want status cancelled", conflictPayload["params"])
+	}
+}
+
+func TestCreateTaskStoresRequestID(t *testing.T) {
+	router, database := newTaskRouterWithDatabase(t, successPredictor(), false)
+
+	request := httptest.NewRequest(
+		http.MethodPost, "/api/tasks", strings.NewReader(`{"formula":"NaCl"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Request-ID", "web-test-789")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusCreated)
+	}
+	if got := recorder.Header().Get("X-Request-ID"); got != "web-test-789" {
+		t.Errorf("response request id = %q, want web-test-789", got)
+	}
+
+	var stored store.PredictionTask
+	if err := database.First(&stored).Error; err != nil {
+		t.Fatalf("load task: %v", err)
+	}
+	if stored.TraceID != "web-test-789" {
+		t.Errorf("stored trace_id = %q, want web-test-789", stored.TraceID)
 	}
 }

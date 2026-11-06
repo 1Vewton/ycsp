@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/1Vewton/ycsp/backend/internal/codes"
+	"github.com/1Vewton/ycsp/backend/internal/traceid"
 )
 
 // writeError 输出统一的错误应答：只有 code 与 params，没有任何语言的文案。
@@ -24,14 +25,20 @@ func writeError(context *gin.Context, statusCode int, code string, params gin.H)
 
 // writeServerError 记录技术细节（日志里），给前端只留一句可翻译的提示。
 func writeServerError(context *gin.Context, err error) {
-	log.Printf("%s handler error: %v", ServiceName, err)
+	log.Printf(
+		"%s handler error: request_id=%s error=%v",
+		ServiceName, traceid.From(context.Request.Context()), err,
+	)
 	writeError(context, http.StatusInternalServerError, codes.InternalError, nil)
 }
 
 // recoveryMiddleware 把 panic 变成统一应答；完整堆栈由 gin 的日志输出保留。
 func recoveryMiddleware() gin.HandlerFunc {
 	return gin.CustomRecovery(func(context *gin.Context, recovered any) {
-		log.Printf("%s panic recovered: %v", ServiceName, recovered)
+		log.Printf(
+			"%s panic recovered: request_id=%s error=%v",
+			ServiceName, traceid.From(context.Request.Context()), recovered,
+		)
 		writeError(context, http.StatusInternalServerError, codes.InternalError, nil)
 	})
 }

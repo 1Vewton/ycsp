@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/netip"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -36,6 +37,8 @@ const (
 	defaultLoginMaxAttemptsPerAccount = 5
 	defaultLoginMaxAttemptsPerAddress = 20
 	defaultLoginBlockSeconds          = 15 * 60
+	// 默认不信任任何反向代理：只有显式配置后才会读 X-Forwarded-For。
+	defaultTrustedProxies = ""
 
 	redisPingTimeout = 3 * time.Second
 
@@ -50,6 +53,7 @@ type appSettings struct {
 	database       store.Settings
 	sessions       sessionSettings
 	loginLimit     loginLimitSettings
+	trustedProxies []netip.Prefix
 }
 
 // sessionSettings 是登录会话的配置。
@@ -121,6 +125,7 @@ func main() {
 			SessionLifetime: settings.sessions.lifetime,
 			SecureCookies:   settings.sessions.secureCookie,
 			LoginGuard:      loginGuard,
+			TrustedProxies:  settings.trustedProxies,
 		},
 	})
 
@@ -128,6 +133,14 @@ func main() {
 	// 只打印驱动名，不打印 DSN：连接串里可能有密码。
 	log.Printf("%s database driver: %s", api.ServiceName, settings.database.Driver)
 	log.Printf("%s session store: %s", api.ServiceName, settings.sessions.driver)
+	if len(settings.trustedProxies) == 0 {
+		log.Printf(
+			"%s trusted proxies: none (login rate limit uses the direct peer address)",
+			api.ServiceName,
+		)
+	} else {
+		log.Printf("%s trusted proxies: %d", api.ServiceName, len(settings.trustedProxies))
+	}
 	log.Printf("%s listening on http://%s", api.ServiceName, address)
 	if err := router.Run(address); err != nil {
 		log.Fatalf("%s failed to start: %v", api.ServiceName, err)
@@ -218,6 +231,13 @@ func readSettings() (appSettings, error) {
 		return appSettings{}, err
 	}
 
+	trustedProxies, err := api.ParseTrustedProxies(
+		env.Get("YCSP_TRUSTED_PROXIES", defaultTrustedProxies),
+	)
+	if err != nil {
+		return appSettings{}, err
+	}
+
 	return appSettings{
 		listenHost:     env.Get("YCSP_BACKEND_HOST", defaultListenHost),
 		listenPort:     listenPort,
@@ -237,5 +257,6 @@ func readSettings() (appSettings, error) {
 			maxAttemptsPerAddress: loginAddressAttempts,
 			window:                time.Duration(loginBlockSeconds) * time.Second,
 		},
+		trustedProxies: trustedProxies,
 	}, nil
 }

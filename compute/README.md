@@ -47,6 +47,15 @@ POST /predict
 - `rule` 说明“为什么给出这个结构”，`caveats` 说明结果的局限；两者都只含 code 与数值，
   前端按 code 翻成一句话（文案见 `frontend/src/locales/`）。
 
+## 日志追踪
+
+每个请求记录一行带编号的日志：`request_id=… method=… path=… status=… duration_ms=…`；
+`/predict` 成功时另记 `formula`、`family`、`prototype`，异常堆栈也带同一个编号。
+
+- 编号优先沿用数据管理层传来的 `X-Request-ID`；没有或格式不合法时生成 `compute-…` 并写回响应头。
+- 中间件在 `app/api/request_context.py`，日志格式与 `request_id` 过滤器在 `app/logging_setup.py`。
+- 只记录方法、路径、状态码、耗时与预测摘要；不记录请求头里的 Cookie 等敏感信息。
+
 ## 算法思路
 
 先按组成判断晶体类型，再套课本规则（代码见 `app/domain/prediction.py`）：

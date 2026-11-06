@@ -63,6 +63,7 @@ users 1 ──── n prediction_tasks 1 ──── 1 structure_results
 | `id` | 无符号整数 | 主键，自增 | |
 | `user_id` | 无符号整数 | 可空，索引，外键 → `users.id`（删用户时置空） | 未登录时为 NULL |
 | `formula` | 字符串(64) | 非空 | 用户输入的化学式原文（已去首尾空格） |
+| `trace_id` | 字符串(64) | 可空，索引 | 创建任务的请求编号；worker 调用数据处理层时沿用（见《日志追踪》） |
 | `status` | 字符串(16) | 非空，联合索引 `(status, created_at)` | `pending` / `running` / `succeeded` / `failed` / `cancelled` |
 | `error_code` | 字符串(64) | 可空 | 失败时的语言无关错误码，与数据处理层的 code 同名 |
 | `error_params` | JSON | 可空 | 错误参数，如 `{"formula":"NaCl2"}` |
@@ -134,6 +135,88 @@ pending ──► running ──► succeeded
 | `YCSP_LOGIN_MAX_ATTEMPTS` | `5` | 同一昵称在窗口内允许的失败次数 |
 | `YCSP_LOGIN_IP_MAX_ATTEMPTS` | `20` | 同一地址在窗口内允许的失败次数 |
 | `YCSP_LOGIN_BLOCK_SECONDS` | `900`（15 分钟） | 失败计数的窗口长度，也是锁定时的等待时间 |
+| `YCSP_TRUSTED_PROXIES` | 空 | 可信反向代理的 IP / CIDR（逗号分隔）。只有直连地址命中这里才读 `X-Forwarded-For`；nginx 同机填 `127.0.0.1/32`。禁止 `0.0.0.0/0` |
+
+### 反向代理部署（nginx）
+
+不配置时，后端只按**直连地址**限流：nginx 后面的所有学生会共用 nginx 的 IP，
+一个人连续失败就可能把全班锁住。把 nginx 的地址加进 `YCSP_TRUSTED_PROXIES` 后，
+后端才会从 `X-Forwarded-For` 里取真实客户端地址。
+
+nginx 与后端在同一台机器时：
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name crystal.example.com;
+
+    root /srv/ycsp/frontend/dist;
+    index index.html;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        # 关键：把直连客户端地址追加到 X-Forwarded-For
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+```dotenv
+# backend/.env
+YCSP_TRUSTED_PROXIES=127.0.0.1/32
+YCSP_COOKIE_SECURE=true
+```
+
+- **只填自己的代理地址 / 网段**：同机填 `127.0.0.1/32`；nginx 在容器里时填容器网络网段
+  （如 `172.18.0.0/16`）或 nginx 的固定 IP。填 `0.0.0.0/0` 会被启动直接拒绝——
+  那等于让任何客户端伪造地址绕过限流。
+- **从右往左取第一个不受信地址**：客户端自己在请求里塞的 `X-Forwarded-For` 在左侧，会被忽略；
+  nginx 追加的真实地址在右侧，才会被采用。
+- **nginx 必须追加或覆盖，不能原样透传**：用 `$proxy_add_x_forwarded_for`（追加）或
+  `$remote_addr`（覆盖）。若写成 `$http_x_forwarded_for`，客户端就能完全控制这个头。
+- **后端端口不要对公网开放**：只让 nginx 访问 8000。直连后端的请求即使带伪造头，
+  也会因为“直连地址不是可信代理”而被忽略。
+- **容器部署**：后端需要监听 `0.0.0.0`（`YCSP_BACKEND_HOST=0.0.0.0`）才能被 nginx 容器访问，
+  但不要把它映射到宿主机公网端口；让 nginx 与后端走同一个 Docker 网络，可信地址填该网络网段。
+- **前面还有 CDN / 负载均衡时**：它们的地址也要列进 `YCSP_TRUSTED_PROXIES`；
+  或者先用 nginx 的 `real_ip` 模块恢复真实 IP，再用 `proxy_set_header X-Forwarded-For $remote_addr;`
+  只把恢复后的地址传给后端（此时后端只信任 nginx）。
+- 转发头格式不合法时退回直连地址（安全优先），此时会暂时共用代理 IP 的计数，需要检查 nginx 配置。
+- `X-Request-ID` 是普通请求头，nginx 默认会转发；后端也会在缺失时生成，因此不必额外配置。
+
+如果希望 **nginx 访问日志也能按同一个编号检索**，可以在 `http` 块里定义一个 map
+（有前端编号就沿用，没有就用 nginx 自己生成的），并在 `location /api/` 里传给后端：
+
+```nginx
+# http 块
+map $http_x_request_id $ycsp_request_id {
+    default $http_x_request_id;
+    ""      $request_id;
+}
+log_format ycsp '$remote_addr - $request_method $uri $status request_id=$ycsp_request_id';
+access_log /var/log/nginx/ycsp.access.log ycsp;
+
+# location /api/ 里追加
+proxy_set_header X-Request-ID $ycsp_request_id;
+```
+
+## 日志追踪
+
+三层统一用 `X-Request-ID` 串起一次请求：
+
+| 层 | 编号来源 | 日志示例 |
+| --- | --- | --- |
+| 前端 | 每次请求生成 `web-…`，放进请求头 | `[ycsp] request start request_id=web-… method=POST path=/api/tasks` |
+| 数据管理层 | 沿用前端编号；没有或不合法时生成 `api-…`，并写回响应头 | `http: request_id=web-… client_ip=203.0.113.7 method=POST path=/api/tasks status=201 duration_ms=8` |
+| 数据处理层 | 沿用数据管理层编号；没有或不合法时生成 `compute-…`，并写回响应头 | `request_id=web-… request method=POST path=/predict status=200 duration_ms=3` |
+
+- **异步预测**：创建任务时的编号写进 `prediction_tasks.trace_id`；worker 调用数据处理层时继续使用，
+  并记录 `tasks: start / succeeded / failed trace_id=… task_id=…`。
+- **怎么查**：把前端控制台里的 `request_id`（或任务日志里的 `trace_id`）复制出来，在三层日志里搜索同一个值。
+- **记录范围**：只记方法、路径、状态码、耗时与预测摘要；不记请求体、密码与 Cookie。
+- **防日志注入**：编号最长 64 个字符，只允许字母、数字与 `-_.:`；含换行等字符的编号会被替换。
 
 ## 如何运行
 
@@ -148,5 +231,6 @@ go run .
 - 注册与登录需要 Redis（默认 `redis://127.0.0.1:6379/0`）；本地没有 Redis 时设 `YCSP_SESSION_DRIVER=memory`。
 - 任务接口要先启动数据处理层：联系不上时任务会以 `compute_unreachable` 失败（不会一直卡在 pending）。
 - 拉不到 Go 依赖时（`proxy.golang.org` 不通）：先 `go env -w GOPROXY=https://goproxy.cn,direct`，再 `go mod tidy`。
+- 部署在 nginx 后面时配置 `YCSP_TRUSTED_PROXIES`，否则登录限流会按 nginx 的 IP 统计（见《反向代理部署（nginx）》）。
 - 测试：`go test ./...`；加 `-cover` 看覆盖率（当前 `env` 100%、`store` 92.9%、`auth` 91.4%、`session` 84.1%、
-  `api` 81.6%，任务与账号包在 75%~85%；只有启动入口 `main()` 不测，因为它会真的占用端口）。
+  `api` 84.0%、`traceid` 90%，任务与账号包在 74%~85%；只有启动入口 `main()` 不测，因为它会真的占用端口）。

@@ -12,6 +12,7 @@ import (
 
 	"github.com/1Vewton/ycsp/backend/internal/codes"
 	"github.com/1Vewton/ycsp/backend/internal/compute"
+	"github.com/1Vewton/ycsp/backend/internal/traceid"
 )
 
 // successBody 是数据处理层成功应答的样本，字段名与 Python 层保持一致。
@@ -95,6 +96,22 @@ func TestPredictSendsFormulaAndParsesTheResult(t *testing.T) {
 	}
 	if !strings.Contains(string(candidate.Atoms), `"symbol": "Na"`) {
 		t.Errorf("atoms = %s", candidate.Atoms)
+	}
+}
+
+func TestPredictPropagatesRequestID(t *testing.T) {
+	var receivedRequestID string
+	server := newFakeCompute(t, func(w http.ResponseWriter, request *http.Request) {
+		receivedRequestID = request.Header.Get(traceid.HeaderName)
+		_, _ = w.Write([]byte(successBody))
+	})
+
+	ctx := traceid.With(context.Background(), "web-test-123")
+	if _, err := compute.NewClient(server.URL).Predict(ctx, "NaCl"); err != nil {
+		t.Fatalf("Predict: %v", err)
+	}
+	if receivedRequestID != "web-test-123" {
+		t.Errorf("X-Request-ID = %q, want web-test-123", receivedRequestID)
 	}
 }
 

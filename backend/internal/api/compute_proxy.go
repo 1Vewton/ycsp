@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/1Vewton/ycsp/backend/internal/codes"
+	"github.com/1Vewton/ycsp/backend/internal/traceid"
 )
 
 // 调用数据处理层的超时上限，避免上游卡住时网页一直转圈。
@@ -30,7 +31,19 @@ func newComputeProxy(baseURL string) *computeProxy {
 func (proxy *computeProxy) handlePingCompute(context *gin.Context) {
 	targetURL := proxy.baseURL + "/health"
 
-	response, err := proxy.client.Get(targetURL)
+	request, err := http.NewRequestWithContext(
+		context.Request.Context(), http.MethodGet, targetURL, nil,
+	)
+	if err != nil {
+		writeServerError(context, err)
+		return
+	}
+	// 把这次请求的编号继续传给数据处理层，三层日志能按同一个值串起来。
+	if requestID := traceid.From(context.Request.Context()); requestID != "" {
+		request.Header.Set(traceid.HeaderName, requestID)
+	}
+
+	response, err := proxy.client.Do(request)
 	if err != nil {
 		writeError(context, http.StatusBadGateway, codes.ComputeUnreachable, gin.H{"url": targetURL})
 		return

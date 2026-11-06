@@ -6,6 +6,7 @@
 | --- | --- |
 | `health.py` | `GET /health` 路由 |
 | `predict.py` | `POST /predict` 路由：把领域层的预测结果包成统一应答 |
+| `request_context.py` | 请求编号：沿用/生成 `X-Request-ID`、写回响应头、记录带编号的请求日志 |
 | `serialization.py` | 结果转字典：晶胞参数、原子坐标，浮点数按展示精度舍入 |
 | `display.py` | 展示精度（保留几位小数）与舍入函数 |
 | `errors.py` | 框架层错误（请求体不合法、未预期异常）也转成统一应答，避免界面出现英文报错 |

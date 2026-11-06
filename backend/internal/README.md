@@ -12,6 +12,7 @@
 | `session/` | 登录会话存储（Redis / 内存），见 [session/README.md](./session/README.md) |
 | `store/` | 数据库连接、GORM 模型与迁移，见 [store/README.md](./store/README.md) |
 | `tasks/` | 任务排队与执行（异步），见 [tasks/README.md](./tasks/README.md) |
+| `traceid/` | 请求编号的生成、校验与传递（三层日志追踪），见 [traceid/README.md](./traceid/README.md) |
 | `users/` | 账号注册与登录校验，见 [users/README.md](./users/README.md) |
 | `env/` | 环境变量读取（带默认值），见 [env/README.md](./env/README.md) |
 | `testutil/` | 只给测试用的共享工具（临时数据库），见 [testutil/README.md](./testutil/README.md) |

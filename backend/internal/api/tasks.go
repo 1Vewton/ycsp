@@ -88,7 +88,9 @@ func createTaskHandler(service *tasks.Service, auth authHandlers) gin.HandlerFun
 		}
 
 		// 登录了就记下任务归属；没登录也能预测（匿名任务 user_id 为 NULL）。
-		task, err := service.Create(formula, auth.optionalUserID(context))
+		task, err := service.Create(
+			context.Request.Context(), formula, auth.optionalUserID(context),
+		)
 		if err != nil {
 			writeServerError(context, err)
 			return

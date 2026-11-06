@@ -14,6 +14,7 @@ import (
 	"github.com/1Vewton/ycsp/backend/internal/compute"
 	"github.com/1Vewton/ycsp/backend/internal/store"
 	"github.com/1Vewton/ycsp/backend/internal/tasks"
+	"github.com/1Vewton/ycsp/backend/internal/traceid"
 )
 
 type stubPredictor struct {
@@ -101,7 +102,7 @@ func TestCreateStoresAPendingTask(t *testing.T) {
 	database := openTestDatabase(t)
 	service := tasks.New(database, stubPredictor{})
 
-	task, err := service.Create("NaCl", nil)
+	task, err := service.Create(context.Background(), "NaCl", nil)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -119,6 +120,55 @@ func TestCreateStoresAPendingTask(t *testing.T) {
 	}
 }
 
+func TestCreateStoresRequestTraceID(t *testing.T) {
+	database := openTestDatabase(t)
+	service := tasks.New(database, stubPredictor{})
+
+	ctx := traceid.With(context.Background(), "web-test-123")
+	task, err := service.Create(ctx, "NaCl", nil)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if task.TraceID != "web-test-123" {
+		t.Errorf("task trace_id = %q, want web-test-123", task.TraceID)
+	}
+
+	var stored store.PredictionTask
+	if err := database.First(&stored, task.ID).Error; err != nil {
+		t.Fatalf("load stored task: %v", err)
+	}
+	if stored.TraceID != "web-test-123" {
+		t.Errorf("stored trace_id = %q, want web-test-123", stored.TraceID)
+	}
+}
+
+func TestWorkerPassesRequestTraceIDToCompute(t *testing.T) {
+	database := openTestDatabase(t)
+	received := make(chan string, 1)
+	service := startService(t, database, stubPredictor{
+		predict: func(ctx context.Context, formula string) (compute.Prediction, error) {
+			received <- traceid.From(ctx)
+			return samplePrediction(formula), nil
+		},
+	})
+
+	ctx := traceid.With(context.Background(), "web-test-456")
+	task, err := service.Create(ctx, "NaCl", nil)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	waitForStatus(t, database, task.ID, store.TaskStatusSucceeded)
+
+	select {
+	case got := <-received:
+		if got != "web-test-456" {
+			t.Errorf("worker trace_id = %q, want web-test-456", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("predictor was not called")
+	}
+}
+
 func TestServiceExecutesTheTaskAndStoresTheResult(t *testing.T) {
 	database := openTestDatabase(t)
 	service := startService(t, database, stubPredictor{
@@ -127,7 +177,7 @@ func TestServiceExecutesTheTaskAndStoresTheResult(t *testing.T) {
 		},
 	})
 
-	task, err := service.Create("NaCl", nil)
+	task, err := service.Create(context.Background(), "NaCl", nil)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -169,7 +219,7 @@ func TestPredictionErrorIsStoredOnTheTask(t *testing.T) {
 		},
 	})
 
-	task, err := service.Create("NaCl2", nil)
+	task, err := service.Create(context.Background(), "NaCl2", nil)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -199,7 +249,7 @@ func TestCancelledTaskIsNotExecuted(t *testing.T) {
 		},
 	})
 
-	task, err := service.Create("NaCl", nil)
+	task, err := service.Create(context.Background(), "NaCl", nil)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -242,7 +292,7 @@ func TestCancelRejectsFinishedTask(t *testing.T) {
 		},
 	})
 
-	task, err := service.Create("NaCl", nil)
+	task, err := service.Create(context.Background(), "NaCl", nil)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -271,7 +321,7 @@ func TestResultIsNotReadyWhilePending(t *testing.T) {
 	database := openTestDatabase(t)
 	service := tasks.New(database, stubPredictor{})
 
-	task, err := service.Create("NaCl", nil)
+	task, err := service.Create(context.Background(), "NaCl", nil)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}

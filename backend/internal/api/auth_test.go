@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -39,6 +40,16 @@ func newAuthRouter(t *testing.T) (http.Handler, *gorm.DB) {
 func newAuthRouterWithPolicy(t *testing.T, policy ratelimit.Policy) (http.Handler, *gorm.DB) {
 	t.Helper()
 
+	return newAuthRouterWithPolicyAndProxies(t, policy, nil)
+}
+
+func newAuthRouterWithPolicyAndProxies(
+	t *testing.T,
+	policy ratelimit.Policy,
+	trustedProxies []netip.Prefix,
+) (http.Handler, *gorm.DB) {
+	t.Helper()
+
 	database := testutil.OpenDatabase(t)
 	guard, err := ratelimit.NewGuard(ratelimit.NewMemoryCounter(), policy)
 	if err != nil {
@@ -52,6 +63,7 @@ func newAuthRouterWithPolicy(t *testing.T, policy ratelimit.Policy) (http.Handle
 			Sessions:        session.NewMemoryStore(),
 			SessionLifetime: time.Hour,
 			LoginGuard:      guard,
+			TrustedProxies:  trustedProxies,
 		},
 	})
 	return router, database
@@ -483,6 +495,78 @@ func TestSignInLocksByAddressAcrossAccounts(t *testing.T) {
 	}
 	if secondPayload["code"] != codes.TooManyAttempts {
 		t.Errorf("code = %v, want %q", secondPayload["code"], codes.TooManyAttempts)
+	}
+}
+
+func TestSignInRateLimitSeparatesClientsBehindTrustedProxy(t *testing.T) {
+	trustedProxies, err := api.ParseTrustedProxies("127.0.0.1/32")
+	if err != nil {
+		t.Fatalf("ParseTrustedProxies: %v", err)
+	}
+	router, _ := newAuthRouterWithPolicyAndProxies(t, ratelimit.Policy{
+		MaxAttemptsPerAccount: 5,
+		MaxAttemptsPerAddress: 2,
+		Window:                time.Minute,
+	}, trustedProxies)
+	registerUser(t, router, "小明")
+
+	attempt := func(forwardedFor string) *httptest.ResponseRecorder {
+		request := httptest.NewRequest(
+			http.MethodPost, "/api/sessions",
+			strings.NewReader(`{"display_name":"小明","password":"ycsp2026?"}`),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		// 所有请求都来自 nginx；真实学生地址由 X-Forwarded-For 带进来。
+		request.RemoteAddr = "127.0.0.1:50000"
+		request.Header.Set("X-Forwarded-For", forwardedFor)
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, request)
+		return recorder
+	}
+
+	if code := attempt("203.0.113.7").Code; code != http.StatusUnauthorized {
+		t.Fatalf("first client first attempt = %d, want %d", code, http.StatusUnauthorized)
+	}
+	if code := attempt("203.0.113.7").Code; code != http.StatusTooManyRequests {
+		t.Fatalf("first client second attempt = %d, want %d", code, http.StatusTooManyRequests)
+	}
+	// 换一个学生（不同的转发地址）不应被上一位学生的计数连坐。
+	if code := attempt("203.0.113.8").Code; code != http.StatusUnauthorized {
+		t.Fatalf("second client first attempt = %d, want %d", code, http.StatusUnauthorized)
+	}
+}
+
+func TestSignInRateLimitIgnoresForwardedForFromUntrustedPeer(t *testing.T) {
+	trustedProxies, err := api.ParseTrustedProxies("127.0.0.1/32")
+	if err != nil {
+		t.Fatalf("ParseTrustedProxies: %v", err)
+	}
+	router, _ := newAuthRouterWithPolicyAndProxies(t, ratelimit.Policy{
+		MaxAttemptsPerAccount: 5,
+		MaxAttemptsPerAddress: 2,
+		Window:                time.Minute,
+	}, trustedProxies)
+	registerUser(t, router, "小明")
+
+	attempt := func(forwardedFor string) *httptest.ResponseRecorder {
+		request := httptest.NewRequest(
+			http.MethodPost, "/api/sessions",
+			strings.NewReader(`{"display_name":"小明","password":"ycsp2026?"}`),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		// 绕过 nginx 直连后端：直连地址不是受信代理，转发头必须被忽略。
+		request.RemoteAddr = "198.51.100.9:50000"
+		request.Header.Set("X-Forwarded-For", forwardedFor)
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, request)
+		return recorder
+	}
+
+	if code := attempt("203.0.113.7").Code; code != http.StatusUnauthorized {
+		t.Fatalf("first attempt = %d, want %d", code, http.StatusUnauthorized)
+	}
+	if code := attempt("203.0.113.8").Code; code != http.StatusTooManyRequests {
+		t.Fatalf("second attempt with a new forwarded address = %d, want %d (same direct peer)", code, http.StatusTooManyRequests)
 	}
 }
 

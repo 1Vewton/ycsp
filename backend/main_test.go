@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/netip"
 	"testing"
 	"time"
 
@@ -24,6 +25,7 @@ func clearSettings(t *testing.T) {
 		"YCSP_LOGIN_MAX_ATTEMPTS",
 		"YCSP_LOGIN_IP_MAX_ATTEMPTS",
 		"YCSP_LOGIN_BLOCK_SECONDS",
+		"YCSP_TRUSTED_PROXIES",
 	} {
 		t.Setenv(key, "")
 	}
@@ -173,6 +175,44 @@ func TestReadSettingsRejectsInvalidLoginLimit(t *testing.T) {
 
 	if _, err := readSettings(); err == nil {
 		t.Fatal("expected an error for a non-numeric login limit")
+	}
+}
+
+func TestReadSettingsParsesTrustedProxies(t *testing.T) {
+	clearSettings(t)
+	t.Setenv("YCSP_TRUSTED_PROXIES", "127.0.0.1, 10.0.0.0/8")
+
+	settings, err := readSettings()
+	if err != nil {
+		t.Fatalf("readSettings: %v", err)
+	}
+
+	if len(settings.trustedProxies) != 2 {
+		t.Fatalf("trusted proxy count = %d, want 2", len(settings.trustedProxies))
+	}
+	if !settings.trustedProxies[0].Contains(netip.MustParseAddr("127.0.0.1")) {
+		t.Errorf("first trusted proxy = %v, want 127.0.0.1/32", settings.trustedProxies[0])
+	}
+	if !settings.trustedProxies[1].Contains(netip.MustParseAddr("10.4.5.6")) {
+		t.Errorf("second trusted proxy = %v, want 10.0.0.0/8", settings.trustedProxies[1])
+	}
+}
+
+func TestReadSettingsRejectsInvalidTrustedProxy(t *testing.T) {
+	clearSettings(t)
+	t.Setenv("YCSP_TRUSTED_PROXIES", "nginx.local")
+
+	if _, err := readSettings(); err == nil {
+		t.Fatal("expected an error for an invalid trusted proxy")
+	}
+}
+
+func TestReadSettingsRejectsTrustingEveryAddress(t *testing.T) {
+	clearSettings(t)
+	t.Setenv("YCSP_TRUSTED_PROXIES", "0.0.0.0/0")
+
+	if _, err := readSettings(); err == nil {
+		t.Fatal("expected an error for 0.0.0.0/0")
 	}
 }
 

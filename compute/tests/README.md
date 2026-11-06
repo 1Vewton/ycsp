@@ -12,6 +12,7 @@
 | `test_constants.py` | 架构约束：常数包不得 import `app.domain` / `app.api` |
 | `test_serialization.py` | 应答字段名、展示精度（所有浮点都舍入到 3 位） |
 | `test_predict_api.py` | `POST /predict` 的应答契约：离子 / 金属两类结果，以及可翻译的 code |
+| `test_request_context.py` | 请求编号：沿用 / 生成 / 非法值替换，预测日志带上 request_id |
 | `test_api_errors.py` | `GET /health`、不支持的物质、未预期异常的统一应答 |
 | `test_env.py` | 环境变量读取：缺省值、空值、非法整数 |
 
@@ -21,9 +22,9 @@
 uv run pytest --cov=app --cov-report=term-missing
 ```
 
-当前约 99%。未覆盖的只有两类：`app/main.py` 的启动入口（会真的占用端口），
-以及 `app/domain/prediction.py` 里“元素数据缺失 / 半径比过小”这类防御分支——它们要构造坏数据才能触发，
-另一侧由 `test_element_data.py` 的一致性断言守住。
+当前约 98%。未覆盖的主要是启动入口（`app/main.py` 会真的占用端口）、
+`app/domain/prediction.py` 里“元素数据缺失 / 半径比过小”这类要构造坏数据才能触发的防御分支，
+以及日志配置里“根日志已有 handler”的分支。
 
 CI 用 `--cov-fail-under=90` 兜底：新增代码如果完全没测，流水线会直接失败。
 

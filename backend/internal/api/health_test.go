@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/1Vewton/ycsp/backend/internal/api"
@@ -51,5 +52,32 @@ func TestUnknownRouteIsNotHandled(t *testing.T) {
 
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNotFound)
+	}
+}
+
+func TestRequestIDIsEchoedOrGenerated(t *testing.T) {
+	router := api.NewRouter(api.Options{ComputeBaseURL: "http://127.0.0.1:1"})
+
+	withClientID := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	withClientID.Header.Set("X-Request-ID", "web-test-123")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withClientID)
+	if got := recorder.Header().Get("X-Request-ID"); got != "web-test-123" {
+		t.Errorf("echoed request id = %q, want web-test-123", got)
+	}
+
+	withoutID := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, withoutID)
+	if got := recorder.Header().Get("X-Request-ID"); !strings.HasPrefix(got, "api-") {
+		t.Errorf("generated request id = %q, want an api- prefix", got)
+	}
+
+	invalidID := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	invalidID.Header.Set("X-Request-ID", "web 123")
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, invalidID)
+	if got := recorder.Header().Get("X-Request-ID"); !strings.HasPrefix(got, "api-") {
+		t.Errorf("request id for an invalid header = %q, want a generated api- id", got)
 	}
 }

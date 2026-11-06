@@ -14,6 +14,7 @@ import (
 
 	"github.com/1Vewton/ycsp/backend/internal/compute"
 	"github.com/1Vewton/ycsp/backend/internal/store"
+	"github.com/1Vewton/ycsp/backend/internal/traceid"
 )
 
 // Predictor 是“把化学式算成结构”的能力：生产用 compute.Client，测试用假实现。
@@ -83,11 +84,15 @@ func (service *Service) Stop() {
 }
 
 // Create 建一条 pending 任务并排队，立即返回；userID 为空表示匿名预测。
-func (service *Service) Create(formula string, userID *uint) (*store.PredictionTask, error) {
+// ctx 里带着这次请求的 trace_id，worker 调用计算层时继续使用。
+func (service *Service) Create(
+	ctx context.Context, formula string, userID *uint,
+) (*store.PredictionTask, error) {
 	task := store.PredictionTask{
 		Formula: formula,
 		UserID:  userID,
 		Status:  store.TaskStatusPending,
+		TraceID: traceid.From(ctx),
 	}
 	if err := service.database.Create(&task).Error; err != nil {
 		return nil, err

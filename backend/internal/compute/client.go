@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/1Vewton/ycsp/backend/internal/traceid"
 )
 
 // predictTimeout 是单次预测的超时上限：计算本身是毫秒级，10 秒足够兜住卡死的情况，
@@ -43,6 +45,9 @@ func (client *Client) Predict(ctx context.Context, formula string) (Prediction, 
 		return Prediction{}, fmt.Errorf("compute: build request: %w", err)
 	}
 	request.Header.Set("Content-Type", "application/json")
+	if requestID := traceid.From(ctx); requestID != "" {
+		request.Header.Set(traceid.HeaderName, requestID)
+	}
 
 	response, err := client.httpClient.Do(request)
 	if err != nil {

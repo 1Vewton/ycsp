@@ -25,6 +25,9 @@
 `compute.Describe` 把数据处理层的错误翻成 `code` + `params` 存进任务
 （如 `compute_unreachable`、`formula_charge_unbalanced`），前端按 code 翻译。
 
+任务创建时的请求编号会存进 `prediction_tasks.trace_id`；worker 调用数据处理层时继续使用它，
+并记录 `tasks: start / succeeded / failed trace_id=… task_id=…`，按同一个编号能把三层日志串起来。
+
 ## 已知限制
 
 - 队列容量 64；满了任务留在 `pending`，等重启补算（教学场景够用）。

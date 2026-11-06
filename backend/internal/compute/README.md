@@ -5,7 +5,7 @@
 
 | 文件 | 作用 |
 | --- | --- |
-| `client.go` | 发请求、超时（10 秒）、解析统一应答 |
+| `client.go` | 发请求、超时（10 秒）、透传 `X-Request-ID`、解析统一应答 |
 | `types.go` | `Prediction` / `Candidate` / `Cell`；`rule`、`caveats`、`atoms` 保留原始 JSON |
 | `errors.go` | 四类失败 + `Describe`：把客户端错误翻成前端可用的 `code` 与 `params` |
 

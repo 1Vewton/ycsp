@@ -9,4 +9,5 @@
 | `domain/` | 晶体学数据类型与预测规则，见 [domain/README.md](./domain/README.md) |
 | `constants/` | 元素数据、结构原型数据、判据阈值与状态码，见 [constants/README.md](./constants/README.md) |
 | `env/` | 环境配置（带默认值），见 [env/README.md](./env/README.md) |
+| `logging_setup.py` | 日志格式：每条应用日志带上 request_id |
 | `__init__.py` | 包元信息：服务名、版本 |

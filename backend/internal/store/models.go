@@ -37,6 +37,9 @@ type PredictionTask struct {
 	ID      uint   `gorm:"primaryKey"`
 	UserID  *uint  `gorm:"index"` // 可空：不登录也能预测
 	Formula string `gorm:"size:64;not null"`
+	// TraceID 是创建任务那次请求的编号；异步 worker 调用数据处理层时继续使用它，
+	// 这样“前端一次点击 → 后端排队 → Python 计算”在日志里能串起来。
+	TraceID string `gorm:"size:64;index"`
 
 	// 联合索引 (status, created_at)：按状态取最早的任务时不用全表扫描。
 	Status    string    `gorm:"size:16;not null;index:idx_tasks_status_created,priority:1"`
