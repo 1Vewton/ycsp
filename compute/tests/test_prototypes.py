@@ -11,6 +11,10 @@ import pytest
 from app.constants.structures import (
     PROTOTYPE_COORDINATION_NUMBERS,
     PROTOTYPE_HEXAGONAL_CLOSE_PACKED,
+    PROTOTYPE_RUTILE,
+    PROTOTYPE_WURTZITE,
+    RutileCellParameters,
+    WurtziteCellParameters,
 )
 from app.domain import prototypes
 from app.domain.elements import COMMON_ELEMENTS
@@ -60,6 +64,56 @@ def test_zinc_blende_places_cation_in_tetrahedral_holes():
 
     assert cell.edge_a_angstrom == pytest.approx(4 * CONTACT_ANGSTROM / sqrt(3.0))
     assert atoms_per_symbol(cell) == {"Na": 4, "Cl": 4}
+
+
+def test_ideal_wurtzite_uses_hexagonal_axial_ratio():
+    cell = prototypes.build_ideal_wurtzite(
+        COMMON_ELEMENTS[ELEMENT_KEY],
+        CATION_RADIUS_PICOMETERS,
+        COMMON_ELEMENTS[ANION_KEY],
+        ANION_RADIUS_PICOMETERS,
+    )
+
+    assert cell.edge_a_angstrom == pytest.approx(CONTACT_ANGSTROM * sqrt(8.0 / 3.0))
+    assert cell.edge_c_angstrom == pytest.approx(cell.edge_a_angstrom * sqrt(8.0 / 3.0))
+    assert cell.angle_gamma_degree == pytest.approx(120.0)
+    assert atoms_per_symbol(cell) == {"Na": 2, "Cl": 2}
+
+
+def test_wurtzite_uses_measured_cell_parameters():
+    parameters = WurtziteCellParameters(
+        edge_a_angstrom=3.2,
+        edge_c_angstrom=5.2,
+        anion_position_u=0.38,
+    )
+    cell = prototypes.build_wurtzite(
+        COMMON_ELEMENTS["Zn"],
+        COMMON_ELEMENTS["O"],
+        parameters,
+    )
+
+    assert cell.edge_a_angstrom == pytest.approx(3.2)
+    assert cell.edge_c_angstrom == pytest.approx(5.2)
+    assert cell.angle_gamma_degree == pytest.approx(120.0)
+    assert atoms_per_symbol(cell) == {"Zn": 2, "O": 2}
+
+
+def test_rutile_places_anions_by_position_parameter():
+    parameters = RutileCellParameters(
+        edge_a_angstrom=4.6,
+        edge_c_angstrom=3.0,
+        anion_position_u=0.3,
+    )
+    cell = prototypes.build_rutile(
+        COMMON_ELEMENTS["Mg"],
+        COMMON_ELEMENTS["F"],
+        parameters,
+    )
+
+    assert cell.edge_a_angstrom == pytest.approx(4.6)
+    assert cell.edge_c_angstrom == pytest.approx(3.0)
+    assert cell.angle_gamma_degree == pytest.approx(90.0)
+    assert atoms_per_symbol(cell) == {"Mg": 2, "F": 4}
 
 
 def test_fluorite_puts_anion_in_all_eight_holes():
@@ -118,6 +172,17 @@ def test_every_fractional_coordinate_stays_inside_the_cell():
         build_ionic_prototype(prototypes.build_zinc_blende),
         build_ionic_prototype(prototypes.build_fluorite),
         build_ionic_prototype(prototypes.build_antifluorite),
+        prototypes.build_ideal_wurtzite(
+            COMMON_ELEMENTS[ELEMENT_KEY],
+            CATION_RADIUS_PICOMETERS,
+            COMMON_ELEMENTS[ANION_KEY],
+            ANION_RADIUS_PICOMETERS,
+        ),
+        prototypes.build_rutile(
+            COMMON_ELEMENTS["Mg"],
+            COMMON_ELEMENTS["F"],
+            RutileCellParameters(4.6, 3.0, 0.3),
+        ),
         prototypes.build_diamond(COMMON_ELEMENTS["C"], 77.0),
         prototypes.build_face_centered_cubic(COMMON_ELEMENTS["Cu"], 128.0),
         prototypes.build_body_centered_cubic(COMMON_ELEMENTS["Fe"], 126.0),
@@ -135,8 +200,10 @@ def test_every_prototype_has_a_coordination_number():
         "rock_salt",
         "cesium_chloride",
         "zinc_blende",
+        "wurtzite",
         "fluorite",
         "antifluorite",
+        "rutile",
         "diamond",
         "face_centered_cubic",
         "body_centered_cubic",
@@ -144,4 +211,6 @@ def test_every_prototype_has_a_coordination_number():
     }
 
     assert set(PROTOTYPE_COORDINATION_NUMBERS) == expected_prototypes
+    assert PROTOTYPE_COORDINATION_NUMBERS[PROTOTYPE_WURTZITE] == 4
+    assert PROTOTYPE_COORDINATION_NUMBERS[PROTOTYPE_RUTILE] == 6
     assert PROTOTYPE_COORDINATION_NUMBERS[PROTOTYPE_HEXAGONAL_CLOSE_PACKED] == 12

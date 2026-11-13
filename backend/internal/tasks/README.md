@@ -1,37 +1,47 @@
-# 数据管理层 · 任务服务（backend/internal/tasks）
+> English | [简体中文](./README.zh-CN.md)
 
-把“创建任务 → 排队 → 调数据处理层 → 落库”串起来。接口层只管 HTTP，排队与执行都在这里。
+# Data management layer · Task service (backend/internal/tasks)
 
-| 文件 | 作用 |
+Connects "create task → queue → call data processing layer → persist". The API layer handles HTTP only; queueing and execution live here.
+
+| File | Purpose |
 | --- | --- |
-| `service.go` | `Create` / `Get` / `Result` / `Cancel`、队列、启动时补算残留任务 |
-| `worker.go` | 抢占任务 → 调 `Predictor` → 写结果或错误 |
+| `service.go` | `Create` / `Get` / `Result` / `Cancel` / `History`, the queue, requeueing leftover tasks at startup, and the periodic sweep of pending tasks |
+| `worker.go` | Claim a task → call `Predictor` → write the result or error |
 
-## 为什么是异步
+## Why asynchronous
 
-接口先返回 `pending`，前端轮询 `GET /api/tasks/:id`。计算现在虽然只要一百多毫秒，
-但把等待放到后台后，以后换成更慢的算法前端不用改，也符合“长耗时要有反馈”的约定。
+The API returns `pending` first, and the frontend polls `GET /api/tasks/:id`. Although computation currently takes only about a hundred milliseconds, moving the wait to the background means the frontend will not need changes when a slower algorithm arrives, and it matches the rule that "long-running work must give feedback".
 
-## 并发怎么保证不打架
+## How concurrency avoids conflicts
 
-- **抢占用条件更新**：`WHERE id = ? AND status = 'pending'`，影响行数为 0 就跳过。
-  “取消”与“开始计算”同时发生时，已取消的任务不会被又跑起来。
-- **结果与状态同事务**：写 `structure_results` 与把状态改成 `succeeded` 在同一个事务里，
-  不会出现“有结果但状态还是 running”。
-- **启动时补算**：上次进程退出时停在 `running` 的任务退回 `pending`，`pending` 的统一重新排队，重启不丢任务。
+- **Claim with a conditional update**: `WHERE id = ? AND status = 'pending'`; if zero rows are affected, skip. If "cancel" and "start computing" happen at the same time, a cancelled task will not run again.
+- **Result and status in one transaction**: writing `structure_results` and setting the status to `succeeded` happen in the same transaction, so there is never "a result exists but the status is still running".
+- **Requeue at startup**: tasks left in `running` by the previous process go back to `pending`, and `pending` tasks are requeued; a restart loses no task (tasks beyond the first batch follow on the next sweep).
+- **Periodic sweep**: every second the service reads a batch of `pending` tasks and re-enqueues them; an in-memory set keeps each task in the queue at most once, so a task dropped by a full queue is retried without a restart.
 
-## 失败怎么记
+## How failures are recorded
 
-`compute.Describe` 把数据处理层的错误翻成 `code` + `params` 存进任务
-（如 `compute_unreachable`、`formula_charge_unbalanced`），前端按 code 翻译。
+`compute.Describe` turns data processing errors into `code` + `params` and stores them in the task (e.g. `compute_unreachable`, `compute_timeout`, `formula_charge_unbalanced`); the frontend translates by code.
+A compute request that exceeds the client timeout is stored as `compute_timeout`; the worker records the failure and moves on to the next task.
 
-任务创建时的请求编号会存进 `prediction_tasks.trace_id`；worker 调用数据处理层时继续使用它，
-并记录 `tasks: start / succeeded / failed trace_id=… task_id=…`，按同一个编号能把三层日志串起来。
+The request ID from task creation is stored in `prediction_tasks.trace_id`; the worker keeps using it when calling the data processing layer and logs `tasks: start / succeeded / failed trace_id=… task_id=…`, so one ID ties the three layers' logs together.
 
-## 已知限制
+## History
 
-- 队列容量 64；满了任务留在 `pending`，等重启补算（教学场景够用）。
-- 同一时刻 1 个 worker：SQLite 只允许一个写入者。
-- 只有 `pending` 能取消；已经开始的任务取消会返回 `task_cancel_conflict`。
+`History(userID, limit, offset)` returns the signed-in account's tasks newest first, together with the result summary of succeeded tasks.
+Anonymous tasks have no owner and never appear. `limit` defaults to 20 and is capped at 50; `offset` pages through older records.
 
-测试：`go test ./internal/tasks/`（假 Predictor + 临时 SQLite，不依赖 Python）。
+## Worker count
+
+`NewWithWorkers(database, predictor, workers)` starts `workers` goroutines (1–16); `New` keeps the default of 1 for local development and tests.
+The database layer does not decide this: `main` chooses the default by driver (SQLite 1, Postgres / MySQL 4) and lets `YCSP_TASK_WORKERS` override it.
+Multiple workers are safe because claiming uses the conditional update above; on SQLite the writes still serialize, so raising the count mainly overlaps time spent waiting on the data processing layer.
+
+## Known limitations
+
+- Queue capacity is 64 (`QueueCapacity`); when full, tasks stay `pending` and the sweep retries them about once per second, so no restart is needed.
+- Only `pending` can be cancelled; cancelling a running task returns `task_cancel_conflict`.
+- `requeueUnfinished` resets `running` tasks at startup. That is correct for a single backend process; multiple backend instances need a lease / owner column or an external queue.
+
+Tests: `go test ./internal/tasks/` (fake Predictor + temporary SQLite by default; set `YCSP_TEST_DB_DRIVER=postgres` and `YCSP_TEST_DB_DSN=...` to run against PostgreSQL).

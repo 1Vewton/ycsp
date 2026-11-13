@@ -52,7 +52,7 @@ async function mountResultView(taskId = '7') {
   const wrapper = mount(ResultView, {
     global: {
       plugins: [router],
-      // 3Dmol 需要 WebGL；组件测试只关心“结果有没有交给查看器”。
+      // Three.js 需要 WebGL；组件测试只关心“结果有没有交给查看器”。
       stubs: { StructureViewer: true },
     },
   })
@@ -109,6 +109,20 @@ describe('ResultView', () => {
     )
     expect(wrapper.text()).toContain(t('result_failed_hint'))
     expect(wrapper.find('.task-steps').exists()).toBe(false)
+  })
+
+  it('计算超时时显示“等太久”的提示，而不是内部 code', async () => {
+    fetchTaskMock.mockResolvedValueOnce(
+      taskSnapshot('failed', {
+        error: { code: 'compute_timeout' },
+        duration_ms: 10500,
+      }),
+    )
+
+    const wrapper = await mountResultView()
+
+    expect(wrapper.find('[role="alert"]').text()).toContain(tCode('compute_timeout'))
+    expect(wrapper.text()).not.toContain('compute_timeout')
   })
 
   it('任务不存在时提示重试，点“再试一次”重新拉状态', async () => {

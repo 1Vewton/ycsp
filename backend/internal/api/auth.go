@@ -56,6 +56,10 @@ func registerAuthRoutes(router *gin.Engine, handlers authHandlers) {
 	router.POST("/api/sessions", handlers.signIn)
 	router.DELETE("/api/sessions", handlers.signOut)
 	router.GET("/api/users/me", handlers.me)
+	router.PUT("/api/users/me/password", handlers.changePassword)
+	router.PUT("/api/users/me/security-question", handlers.setSecurityQuestion)
+	router.POST("/api/password-resets/question", handlers.passwordResetQuestion)
+	router.POST("/api/password-resets", handlers.resetPassword)
 }
 
 type credentialsRequest struct {
@@ -63,30 +67,71 @@ type credentialsRequest struct {
 	Password    string `json:"password"`
 }
 
-// userPayload 是账号的对外形状：绝不包含密码哈希。
+// registrationRequest 比登录多两个可选字段：安全问题与答案。
+// 两者要么都填（启用自助重置），要么都留空。
+type registrationRequest struct {
+	DisplayName      string `json:"display_name"`
+	Password         string `json:"password"`
+	SecurityQuestion string `json:"security_question"`
+	SecurityAnswer   string `json:"security_answer"`
+}
+
+// passwordChangeRequest 是登录后修改密码的请求体。
+type passwordChangeRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+// securityQuestionRequest 是登录后设置或更新安全问题的请求体。
+type securityQuestionRequest struct {
+	CurrentPassword  string `json:"current_password"`
+	SecurityQuestion string `json:"security_question"`
+	SecurityAnswer   string `json:"security_answer"`
+}
+
+// passwordResetQuestionRequest 是忘记密码时按昵称取安全问题的请求体。
+type passwordResetQuestionRequest struct {
+	DisplayName string `json:"display_name"`
+}
+
+// passwordResetRequest 是用安全问题答案重置密码的请求体。
+type passwordResetRequest struct {
+	DisplayName    string `json:"display_name"`
+	SecurityAnswer string `json:"security_answer"`
+	NewPassword    string `json:"new_password"`
+}
+
+// userPayload 是账号的对外形状：绝不包含密码哈希或安全答案哈希。
 type userPayload struct {
-	ID          uint      `json:"id"`
-	DisplayName string    `json:"display_name"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID               uint      `json:"id"`
+	DisplayName      string    `json:"display_name"`
+	SecurityQuestion string    `json:"security_question"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 func userToPayload(user *store.User) userPayload {
 	return userPayload{
-		ID:          user.ID,
-		DisplayName: user.DisplayName,
-		CreatedAt:   user.CreatedAt.UTC(),
+		ID:               user.ID,
+		DisplayName:      user.DisplayName,
+		SecurityQuestion: user.SecurityQuestion,
+		CreatedAt:        user.CreatedAt.UTC(),
 	}
 }
 
 // register 学生自助注册：成功后直接登录（下发会话 Cookie）。
 func (handlers authHandlers) register(context *gin.Context) {
-	var request credentialsRequest
+	var request registrationRequest
 	if err := context.ShouldBindJSON(&request); err != nil {
 		writeError(context, http.StatusBadRequest, codes.RequestInvalidBody, nil)
 		return
 	}
 
-	user, err := handlers.users.Register(request.DisplayName, request.Password)
+	user, err := handlers.users.RegisterWithSecurity(
+		request.DisplayName,
+		request.Password,
+		request.SecurityQuestion,
+		request.SecurityAnswer,
+	)
 	if err != nil {
 		handlers.writeAccountError(context, err)
 		return
@@ -199,6 +244,19 @@ func (handlers authHandlers) recordFailure(
 	return retryAfter, retryAfter > 0
 }
 
+// resetFailures 在密码/安全问题校验成功后清掉这个昵称的失败计数。
+func (handlers authHandlers) resetFailures(ctx context.Context, account string) {
+	if handlers.guard == nil {
+		return
+	}
+	if err := handlers.guard.ResetAccount(ctx, account); err != nil {
+		log.Printf(
+			"%s reset login counter: request_id=%s error=%v",
+			ServiceName, traceid.From(ctx), err,
+		)
+	}
+}
+
 // signOut 结束当前会话；没有会话时也返回成功（退出登录是幂等的）。
 func (handlers authHandlers) signOut(context *gin.Context) {
 	sessionID, err := context.Cookie(sessionCookieName)
@@ -228,6 +286,165 @@ func (handlers authHandlers) me(context *gin.Context) {
 		"service": ServiceName,
 		"status":  "ok",
 		"code":    codes.UserOK,
+		"user":    userToPayload(user),
+	})
+}
+
+// changePassword 登录后修改密码：需要当前密码，成功后当前会话继续有效。
+func (handlers authHandlers) changePassword(context *gin.Context) {
+	user, ok := handlers.currentUser(context)
+	if !ok {
+		return
+	}
+
+	var request passwordChangeRequest
+	if err := context.ShouldBindJSON(&request); err != nil {
+		writeError(context, http.StatusBadRequest, codes.RequestInvalidBody, nil)
+		return
+	}
+
+	requestContext := context.Request.Context()
+	account := user.DisplayName
+	address := handlers.addresses.Address(context.Request)
+	if retryAfter, blocked := handlers.blockedFor(requestContext, account, address); blocked {
+		writeTooManyAttempts(context, retryAfter)
+		return
+	}
+
+	updatedUser, err := handlers.users.ChangePassword(
+		user.ID, request.CurrentPassword, request.NewPassword,
+	)
+	if err != nil {
+		if errors.Is(err, users.ErrCurrentPasswordIncorrect) {
+			retryAfter, blocked := handlers.recordFailure(requestContext, account, address)
+			if blocked {
+				writeTooManyAttempts(context, retryAfter)
+				return
+			}
+		}
+		handlers.writeAccountError(context, err)
+		return
+	}
+
+	handlers.resetFailures(requestContext, account)
+	context.JSON(http.StatusOK, gin.H{
+		"service": ServiceName,
+		"status":  "ok",
+		"code":    codes.PasswordChanged,
+		"user":    userToPayload(updatedUser),
+	})
+}
+
+// setSecurityQuestion 登录后设置或更新安全问题：需要当前密码。
+func (handlers authHandlers) setSecurityQuestion(context *gin.Context) {
+	user, ok := handlers.currentUser(context)
+	if !ok {
+		return
+	}
+
+	var request securityQuestionRequest
+	if err := context.ShouldBindJSON(&request); err != nil {
+		writeError(context, http.StatusBadRequest, codes.RequestInvalidBody, nil)
+		return
+	}
+
+	requestContext := context.Request.Context()
+	account := user.DisplayName
+	address := handlers.addresses.Address(context.Request)
+	if retryAfter, blocked := handlers.blockedFor(requestContext, account, address); blocked {
+		writeTooManyAttempts(context, retryAfter)
+		return
+	}
+
+	updatedUser, err := handlers.users.SetSecurityQuestion(
+		user.ID, request.CurrentPassword, request.SecurityQuestion, request.SecurityAnswer,
+	)
+	if err != nil {
+		if errors.Is(err, users.ErrCurrentPasswordIncorrect) {
+			retryAfter, blocked := handlers.recordFailure(requestContext, account, address)
+			if blocked {
+				writeTooManyAttempts(context, retryAfter)
+				return
+			}
+		}
+		handlers.writeAccountError(context, err)
+		return
+	}
+
+	handlers.resetFailures(requestContext, account)
+	context.JSON(http.StatusOK, gin.H{
+		"service": ServiceName,
+		"status":  "ok",
+		"code":    codes.SecurityQuestionUpdated,
+		"user":    userToPayload(updatedUser),
+	})
+}
+
+// passwordResetQuestion 按昵称返回安全问题；账号不存在或没设置问题统一返回不可用。
+func (handlers authHandlers) passwordResetQuestion(context *gin.Context) {
+	var request passwordResetQuestionRequest
+	if err := context.ShouldBindJSON(&request); err != nil {
+		writeError(context, http.StatusBadRequest, codes.RequestInvalidBody, nil)
+		return
+	}
+
+	question, err := handlers.users.QuestionFor(request.DisplayName)
+	if err != nil {
+		if errors.Is(err, users.ErrPasswordResetUnavailable) {
+			writeError(context, http.StatusBadRequest, codes.PasswordResetUnavailable, nil)
+			return
+		}
+		writeServerError(context, err)
+		return
+	}
+
+	context.JSON(http.StatusOK, gin.H{
+		"service":           ServiceName,
+		"status":            "ok",
+		"code":              codes.PasswordResetQuestion,
+		"security_question": question,
+	})
+}
+
+// resetPassword 用安全问题答案重置密码；成功后直接登录，避免学生再输一次新密码。
+func (handlers authHandlers) resetPassword(context *gin.Context) {
+	var request passwordResetRequest
+	if err := context.ShouldBindJSON(&request); err != nil {
+		writeError(context, http.StatusBadRequest, codes.RequestInvalidBody, nil)
+		return
+	}
+
+	requestContext := context.Request.Context()
+	account := strings.TrimSpace(request.DisplayName)
+	address := handlers.addresses.Address(context.Request)
+	if retryAfter, blocked := handlers.blockedFor(requestContext, account, address); blocked {
+		writeTooManyAttempts(context, retryAfter)
+		return
+	}
+
+	user, err := handlers.users.ResetPassword(
+		request.DisplayName, request.SecurityAnswer, request.NewPassword,
+	)
+	if err != nil {
+		if errors.Is(err, users.ErrPasswordResetFailed) {
+			retryAfter, blocked := handlers.recordFailure(requestContext, account, address)
+			if blocked {
+				writeTooManyAttempts(context, retryAfter)
+				return
+			}
+		}
+		handlers.writeAccountError(context, err)
+		return
+	}
+
+	handlers.resetFailures(requestContext, account)
+	if !handlers.startSession(context, user.ID) {
+		return
+	}
+	context.JSON(http.StatusOK, gin.H{
+		"service": ServiceName,
+		"status":  "ok",
+		"code":    codes.PasswordReset,
 		"user":    userToPayload(user),
 	})
 }
@@ -318,6 +535,8 @@ func (handlers authHandlers) optionalUserID(context *gin.Context) *uint {
 func (handlers authHandlers) writeAccountError(context *gin.Context, err error) {
 	var invalidName *users.InvalidNameError
 	var weakPassword *users.WeakPasswordError
+	var invalidQuestion *users.InvalidSecurityQuestionError
+	var invalidAnswer *users.InvalidSecurityAnswerError
 
 	switch {
 	case errors.As(err, &invalidName):
@@ -331,6 +550,26 @@ func (handlers authHandlers) writeAccountError(context *gin.Context, err error) 
 			"min_length": auth.MinPasswordLength,
 			"max_bytes":  auth.MaxPasswordBytes,
 		})
+	case errors.As(err, &invalidQuestion):
+		writeError(context, http.StatusBadRequest, codes.SecurityQuestionInvalid, gin.H{
+			"min_length": invalidQuestion.MinLength,
+			"max_length": invalidQuestion.MaxLength,
+		})
+	case errors.As(err, &invalidAnswer):
+		writeError(context, http.StatusBadRequest, codes.SecurityAnswerInvalid, gin.H{
+			"min_length": invalidAnswer.MinLength,
+			"max_bytes":  invalidAnswer.MaxBytes,
+		})
+	case errors.Is(err, users.ErrSecuritySetupIncomplete):
+		writeError(context, http.StatusBadRequest, codes.SecuritySetupIncomplete, nil)
+	case errors.Is(err, users.ErrCurrentPasswordIncorrect):
+		writeError(context, http.StatusBadRequest, codes.CurrentPasswordIncorrect, nil)
+	case errors.Is(err, users.ErrPasswordUnchanged):
+		writeError(context, http.StatusBadRequest, codes.PasswordUnchanged, nil)
+	case errors.Is(err, users.ErrPasswordResetUnavailable):
+		writeError(context, http.StatusBadRequest, codes.PasswordResetUnavailable, nil)
+	case errors.Is(err, users.ErrPasswordResetFailed):
+		writeError(context, http.StatusBadRequest, codes.PasswordResetFailed, nil)
 	case errors.Is(err, users.ErrNameTaken):
 		writeError(context, http.StatusConflict, codes.UserNameTaken, nil)
 	default:

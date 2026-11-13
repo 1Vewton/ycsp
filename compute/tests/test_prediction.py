@@ -8,11 +8,14 @@ from app.constants.codes import (
     CAVEAT_CONFIRMED_BY_EXPERIMENT,
     CAVEAT_METAL_STRUCTURE_EXPERIMENTAL,
     CAVEAT_NEAR_BOUNDARY,
+    CAVEAT_POLYMORPH,
     CAVEAT_RADIUS_RATIO_EMPIRICAL,
     CAVEAT_STOICHIOMETRY_OUTSIDE_BAND,
     ERROR_COMPOSITION_NOT_SUPPORTED,
     ERROR_FORMULA_CHARGE_UNBALANCED,
     RULE_RADIUS_RATIO,
+    RULE_RUTILE_EXPERIMENTAL,
+    RULE_WURTZITE_EXPERIMENTAL,
 )
 from app.domain.notice import DomainError
 from app.domain.prediction import (
@@ -32,6 +35,8 @@ from app.constants.structures import (
     PROTOTYPE_FLUORITE,
     PROTOTYPE_HEXAGONAL_CLOSE_PACKED,
     PROTOTYPE_ROCK_SALT,
+    PROTOTYPE_RUTILE,
+    PROTOTYPE_WURTZITE,
     PROTOTYPE_ZINC_BLENDE,
 )
 
@@ -102,15 +107,72 @@ def test_sodium_oxide_is_antifluorite():
     assert CAVEAT_STOICHIOMETRY_OUTSIDE_BAND in caveat_codes(candidate)
 
 
-def test_zinc_sulfide_is_zinc_blende_with_boundary_caveat():
+def test_magnesium_fluoride_is_rutile():
+    """MgF2 按离子个数比是 1:2，但实测不是萤石型，而是四方金红石型。"""
+    candidate = only_candidate("MgF2")
+
+    assert candidate.prototype == PROTOTYPE_RUTILE
+    assert candidate.coordination_number == 6
+    assert candidate.cell.edge_a_angstrom == pytest.approx(
+        4.62, abs=CELL_EDGE_TOLERANCE_ANGSTROM
+    )
+    assert candidate.cell.edge_c_angstrom == pytest.approx(
+        3.05, abs=CELL_EDGE_TOLERANCE_ANGSTROM
+    )
+    assert candidate.cell.angle_gamma_degree == pytest.approx(90.0)
+    assert atoms_per_symbol(candidate) == {"Mg": 2, "F": 4}
+    assert candidate.rule.code == RULE_RUTILE_EXPERIMENTAL
+
+
+def test_titanium_dioxide_is_rutile():
+    result = predict_structure("TiO2")
+    candidate = result.candidates[0]
+
+    assert result.family == FAMILY_IONIC
+    assert candidate.prototype == PROTOTYPE_RUTILE
+    assert candidate.coordination_number == 6
+    assert candidate.cell.edge_a_angstrom == pytest.approx(
+        4.59, abs=CELL_EDGE_TOLERANCE_ANGSTROM
+    )
+    assert candidate.cell.edge_c_angstrom == pytest.approx(
+        2.96, abs=CELL_EDGE_TOLERANCE_ANGSTROM
+    )
+    assert atoms_per_symbol(candidate) == {"Ti": 2, "O": 4}
+    assert candidate.rule.code == RULE_RUTILE_EXPERIMENTAL
+
+
+def test_zinc_sulfide_is_wurtzite_with_polymorph_caveat():
     candidate = only_candidate("ZnS")
 
-    assert candidate.prototype == PROTOTYPE_ZINC_BLENDE
+    assert candidate.prototype == PROTOTYPE_WURTZITE
     assert candidate.coordination_number == 4
     assert candidate.cell.edge_a_angstrom == pytest.approx(
-        5.96, abs=CELL_EDGE_TOLERANCE_ANGSTROM
+        3.82, abs=CELL_EDGE_TOLERANCE_ANGSTROM
     )
+    assert candidate.cell.edge_c_angstrom == pytest.approx(
+        6.26, abs=CELL_EDGE_TOLERANCE_ANGSTROM
+    )
+    assert candidate.cell.angle_gamma_degree == pytest.approx(120.0)
+    assert atoms_per_symbol(candidate) == {"Zn": 2, "S": 2}
+    assert candidate.rule.code == RULE_WURTZITE_EXPERIMENTAL
+    assert CAVEAT_POLYMORPH in caveat_codes(candidate)
     assert CAVEAT_NEAR_BOUNDARY in caveat_codes(candidate)
+
+
+def test_zinc_oxide_is_wurtzite():
+    candidate = only_candidate("ZnO")
+
+    assert candidate.prototype == PROTOTYPE_WURTZITE
+    assert candidate.coordination_number == 4
+    assert candidate.cell.edge_a_angstrom == pytest.approx(
+        3.25, abs=CELL_EDGE_TOLERANCE_ANGSTROM
+    )
+    assert candidate.cell.edge_c_angstrom == pytest.approx(
+        5.21, abs=CELL_EDGE_TOLERANCE_ANGSTROM
+    )
+    assert candidate.cell.angle_gamma_degree == pytest.approx(120.0)
+    assert atoms_per_symbol(candidate) == {"Zn": 2, "O": 2}
+    assert candidate.rule.code == RULE_WURTZITE_EXPERIMENTAL
 
 
 def test_diamond_cell_edge():
@@ -174,7 +236,7 @@ def test_magnesium_is_hexagonal_close_packed():
 
 def test_fractional_coordinates_stay_inside_cell():
     """分数坐标必须落在 [0, 1)，否则前端会把原子画到晶胞外面。"""
-    for formula in ("NaCl", "CaF2", "C", "Cu", "Mg"):
+    for formula in ("NaCl", "CaF2", "ZnO", "ZnS", "MgF2", "TiO2", "C", "Cu", "Mg"):
         candidate = only_candidate(formula)
         for atom in candidate.cell.atoms:
             for value in atom.fractional_coordinates:
@@ -191,13 +253,13 @@ def test_known_ionic_compounds_match_experiment(formula: str, expected_prototype
     assert candidate.prototype == expected_prototype
 
 
-def test_unlisted_ionic_pair_falls_back_to_radius_ratio():
-    """不在经典表里的 1:1 组合按半径比规则给结果，并注明这是经验规律。
+def test_unlisted_ionic_pair_falls_back_to_radius_ratio(monkeypatch):
+    """把经典表里的 NaCl 临时移除，验证 1:1 组合仍按半径比规则给结果。
 
-    ZnO 的实际结构是六方纤锌矿型，属 `compute/README.md` 写明的已知偏差；
-    这里断言的是“规则会给出什么”，不是实验值。
+    规则结果是“最可能”的配位数，不代表实验值；实际结构以实验测定为准。
     """
-    candidate = only_candidate("ZnO")
+    monkeypatch.delitem(KNOWN_IONIC_STRUCTURES, "NaCl")
+    candidate = only_candidate("NaCl")
 
     assert candidate.prototype == PROTOTYPE_ROCK_SALT
     assert candidate.rule.code == RULE_RADIUS_RATIO

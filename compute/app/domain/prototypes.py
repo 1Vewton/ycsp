@@ -13,9 +13,16 @@ from app.constants.structures import (
     HEXAGONAL_CLOSE_PACKED_SITES,
     HEXAGONAL_GAMMA_DEGREE,
     IDEAL_HEXAGONAL_AXIAL_RATIO,
+    IDEAL_WURTZITE_ANION_U,
     OCTAHEDRAL_HOLE_SITES,
     RIGHT_ANGLE_DEGREE,
+    RUTILE_CATION_SITES,
     TETRAHEDRAL_HOLE_SITES_FIRST,
+    WURTZITE_ANION_XY,
+    WURTZITE_ANION_Z_OFFSETS,
+    WURTZITE_CATION_SITES,
+    RutileCellParameters,
+    WurtziteCellParameters,
 )
 from app.domain.structure import Atom, Element, UnitCell, angstrom_from_picometers
 
@@ -60,6 +67,66 @@ def build_zinc_blende(
     return _cubic_cell(edge, atoms)
 
 
+def build_wurtzite(
+    cation: Element,
+    anion: Element,
+    parameters: WurtziteCellParameters,
+) -> UnitCell:
+    """六方纤锌矿型（ZnO / ZnS）：用实验晶胞参数摆放两套四面体位置。"""
+    return _wurtzite_cell(
+        cation,
+        anion,
+        parameters.edge_a_angstrom,
+        parameters.edge_c_angstrom,
+        parameters.anion_position_u,
+    )
+
+
+def build_ideal_wurtzite(
+    cation: Element,
+    cation_radius_picometers: float,
+    anion: Element,
+    anion_radius_picometers: float,
+) -> UnitCell:
+    """没有实验晶胞数据时，用硬球相切模型估一个理想纤锌矿晶胞。
+
+    阳离子与阴离子沿 c 轴相切时键长 = r₊ + r₋，理想纤锌矿的
+    c/a = √(8/3)、u = 3/8，由此反推 a 与 c。
+    """
+    contact_angstrom = _gap_angstrom(cation_radius_picometers, anion_radius_picometers)
+    edge_a = contact_angstrom * IDEAL_HEXAGONAL_AXIAL_RATIO
+    edge_c = edge_a * IDEAL_HEXAGONAL_AXIAL_RATIO
+    return _wurtzite_cell(
+        cation,
+        anion,
+        edge_a,
+        edge_c,
+        IDEAL_WURTZITE_ANION_U,
+    )
+
+
+def _wurtzite_cell(
+    cation: Element,
+    anion: Element,
+    edge_a_angstrom: float,
+    edge_c_angstrom: float,
+    anion_position_u: float,
+) -> UnitCell:
+    """按纤锌矿的分数坐标把两套离子放进六方晶胞。"""
+    atoms = _atoms_at(WURTZITE_CATION_SITES, cation)
+    for (x, y), z_offset in zip(WURTZITE_ANION_XY, WURTZITE_ANION_Z_OFFSETS):
+        atoms.append(Atom(anion, (x, y, (anion_position_u + z_offset) % 1.0)))
+    return UnitCell(
+        edge_a_angstrom=edge_a_angstrom,
+        edge_b_angstrom=edge_a_angstrom,
+        edge_c_angstrom=edge_c_angstrom,
+        angle_alpha_degree=RIGHT_ANGLE_DEGREE,
+        angle_beta_degree=RIGHT_ANGLE_DEGREE,
+        angle_gamma_degree=HEXAGONAL_GAMMA_DEGREE,
+        atoms=atoms,
+    )
+
+
 def build_fluorite(
     cation: Element,
     cation_radius_picometers: float,
@@ -88,6 +155,33 @@ def build_antifluorite(
         ALL_TETRAHEDRAL_HOLE_SITES, cation
     )
     return _cubic_cell(edge, atoms)
+
+
+def build_rutile(
+    cation: Element,
+    anion: Element,
+    parameters: RutileCellParameters,
+) -> UnitCell:
+    """四方金红石型（MgF2 / TiO2）：阳离子在顶点与体心，阴离子由 u 决定。"""
+    edge_a = parameters.edge_a_angstrom
+    edge_c = parameters.edge_c_angstrom
+    u = parameters.anion_position_u
+    atoms = _atoms_at(RUTILE_CATION_SITES, cation)
+    atoms += [
+        Atom(anion, (u, u, 0.0)),
+        Atom(anion, ((1.0 - u) % 1.0, (1.0 - u) % 1.0, 0.0)),
+        Atom(anion, ((0.5 + u) % 1.0, (0.5 - u) % 1.0, 0.5)),
+        Atom(anion, ((0.5 - u) % 1.0, (0.5 + u) % 1.0, 0.5)),
+    ]
+    return UnitCell(
+        edge_a_angstrom=edge_a,
+        edge_b_angstrom=edge_a,
+        edge_c_angstrom=edge_c,
+        angle_alpha_degree=RIGHT_ANGLE_DEGREE,
+        angle_beta_degree=RIGHT_ANGLE_DEGREE,
+        angle_gamma_degree=RIGHT_ANGLE_DEGREE,
+        atoms=atoms,
+    )
 
 
 def build_diamond(element: Element, radius_picometers: float) -> UnitCell:

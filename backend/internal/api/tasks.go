@@ -60,11 +60,33 @@ type taskResultCell struct {
 	AngleGammaDegree float64 `json:"angle_gamma_degree"`
 }
 
+// taskHistoryResult 是历史列表里展示的结构摘要，不需要整份原子坐标。
+type taskHistoryResult struct {
+	Family             string `json:"family"`
+	Prototype          string `json:"prototype"`
+	CoordinationNumber int    `json:"coordination_number"`
+}
+
+// taskHistoryItem 是“我的预测记录”里的一条任务；失败时带 error，成功时带 result。
+type taskHistoryItem struct {
+	ID         uint               `json:"id"`
+	Formula    string             `json:"formula"`
+	Status     string             `json:"status"`
+	CreatedAt  time.Time          `json:"created_at"`
+	FinishedAt *time.Time         `json:"finished_at"`
+	DurationMS *int64             `json:"duration_ms"`
+	Error      *taskErrorPayload  `json:"error,omitempty"`
+	Result     *taskHistoryResult `json:"result,omitempty"`
+}
+
 func registerTaskRoutes(router *gin.Engine, service *tasks.Service, auth authHandlers) {
 	router.POST("/api/tasks", createTaskHandler(service, auth))
 	router.GET("/api/tasks/:id", getTaskHandler(service))
 	router.GET("/api/tasks/:id/result", getTaskResultHandler(service))
 	router.POST("/api/tasks/:id/cancel", cancelTaskHandler(service))
+	if auth.enabled() {
+		router.GET("/api/users/me/tasks", taskHistoryHandler(service, auth))
+	}
 }
 
 func createTaskHandler(service *tasks.Service, auth authHandlers) gin.HandlerFunc {
@@ -150,6 +172,76 @@ func cancelTaskHandler(service *tasks.Service) gin.HandlerFunc {
 		}
 		writeTask(context, http.StatusOK, codes.TaskCancelled, task)
 	}
+}
+
+// taskHistoryHandler 返回当前登录账号的预测记录；匿名任务没有归属，不在列表里。
+func taskHistoryHandler(service *tasks.Service, auth authHandlers) gin.HandlerFunc {
+	return func(context *gin.Context) {
+		user, ok := auth.currentUser(context)
+		if !ok {
+			return
+		}
+
+		limit, offset := parseHistoryPaging(context)
+		page, err := service.History(user.ID, limit, offset)
+		if err != nil {
+			writeServerError(context, err)
+			return
+		}
+
+		items := make([]taskHistoryItem, 0, len(page.Entries))
+		for _, entry := range page.Entries {
+			task := taskToPayload(&entry.Task)
+			item := taskHistoryItem{
+				ID:         task.ID,
+				Formula:    task.Formula,
+				Status:     task.Status,
+				CreatedAt:  task.CreatedAt,
+				FinishedAt: task.FinishedAt,
+				DurationMS: task.DurationMS,
+				Error:      task.Error,
+			}
+			if entry.Result != nil {
+				item.Result = &taskHistoryResult{
+					Family:             entry.Result.Family,
+					Prototype:          entry.Result.Prototype,
+					CoordinationNumber: entry.Result.CoordinationNumber,
+				}
+			}
+			items = append(items, item)
+		}
+
+		context.JSON(http.StatusOK, gin.H{
+			"service": ServiceName,
+			"status":  "ok",
+			"code":    codes.TaskHistory,
+			"tasks":   items,
+			"total":   page.Total,
+			"limit":   page.Limit,
+			"offset":  page.Offset,
+		})
+	}
+}
+
+// parseHistoryPaging 读取 limit / offset；非法值回退默认，不让学生因为地址栏参数看到报错。
+func parseHistoryPaging(context *gin.Context) (int, int) {
+	limit := tasks.DefaultHistoryLimit
+	if rawLimit := context.Query("limit"); rawLimit != "" {
+		if parsed, err := strconv.Atoi(rawLimit); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+	if limit > tasks.MaxHistoryLimit {
+		limit = tasks.MaxHistoryLimit
+	}
+
+	offset := 0
+	if rawOffset := context.Query("offset"); rawOffset != "" {
+		if parsed, err := strconv.Atoi(rawOffset); err == nil && parsed > 0 {
+			offset = parsed
+		}
+	}
+	return limit, offset
 }
 
 func parseTaskID(context *gin.Context) (uint, bool) {

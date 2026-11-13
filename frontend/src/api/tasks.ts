@@ -98,3 +98,59 @@ async function requestResult(url: string, init: RequestInit): Promise<StructureR
   }
   return envelope.result
 }
+
+/** 历史列表里展示的结构摘要，不含完整原子坐标。 */
+export interface TaskHistoryResult {
+  family: string
+  prototype: string
+  coordination_number: number
+}
+
+/** “我的预测记录”里的一条任务。 */
+export interface TaskHistoryItem {
+  id: number
+  formula: string
+  status: TaskStatus
+  created_at: string
+  finished_at: string | null
+  duration_ms: number | null
+  error?: TaskProblem
+  result?: TaskHistoryResult
+}
+
+/** 一页预测记录；total 是当前账号的全部任务数。 */
+export interface TaskHistoryPage {
+  tasks: TaskHistoryItem[]
+  total: number
+  limit: number
+  offset: number
+}
+
+interface TaskHistoryEnvelope {
+  tasks?: TaskHistoryItem[]
+  total?: number
+  limit?: number
+  offset?: number
+}
+
+/** 取当前登录账号的预测记录；匿名任务不会出现在这里。 */
+export async function fetchTaskHistory(limit = 20, offset = 0): Promise<TaskHistoryPage> {
+  const envelope = await requestApi<TaskHistoryEnvelope>(
+    `/api/users/me/tasks?limit=${limit}&offset=${offset}`,
+    { method: 'GET' },
+  )
+  if (
+    !Array.isArray(envelope.tasks) ||
+    typeof envelope.total !== 'number' ||
+    typeof envelope.limit !== 'number' ||
+    typeof envelope.offset !== 'number'
+  ) {
+    throw new ApiError({ code: 'internal_error' })
+  }
+  return {
+    tasks: envelope.tasks,
+    total: envelope.total,
+    limit: envelope.limit,
+    offset: envelope.offset,
+  }
+}

@@ -10,6 +10,10 @@ const authMocks = vi.hoisted(() => ({
   registerAccount: vi.fn(),
   signIn: vi.fn(),
   signOut: vi.fn(),
+  changePassword: vi.fn(),
+  updateSecurityQuestion: vi.fn(),
+  fetchPasswordResetQuestion: vi.fn(),
+  resetPassword: vi.fn(),
 }))
 
 vi.mock('../src/api/auth', () => authMocks)
@@ -46,6 +50,9 @@ async function mountLogin(path = '/login') {
       { path: '/predict', component: { template: '<div />' } },
       { path: '/result/:taskId', component: { template: '<div />' } },
       { path: '/login', component: LoginView },
+      { path: '/reset-password', component: { template: '<div />' } },
+      { path: '/account', component: { template: '<div />' } },
+      { path: '/history', component: { template: '<div />' } },
     ],
   })
   await router.push(path)
@@ -141,8 +148,28 @@ describe('LoginView 注册', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    expect(authMocks.registerAccount).toHaveBeenCalledWith('小明', 'Passw0rd!')
+    expect(authMocks.registerAccount).toHaveBeenCalledWith('小明', 'Passw0rd!', '', '')
     expect(router.currentRoute.value.fullPath).toBe('/predict')
+  })
+
+  it('注册时可填写安全问题并传给注册接口', async () => {
+    authMocks.registerAccount.mockResolvedValue(account)
+    const { wrapper } = await mountLogin()
+    await wrapper.findAll('.mode-button')[1].trigger('click')
+
+    await fillCredentials(wrapper, '小明')
+    await wrapper.find('#login-password-confirmation').setValue('Passw0rd!')
+    await wrapper.find('#login-security-question').setValue('最喜欢的元素？')
+    await wrapper.find('#login-security-answer').setValue('钠')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(authMocks.registerAccount).toHaveBeenCalledWith(
+      '小明',
+      'Passw0rd!',
+      '最喜欢的元素？',
+      '钠',
+    )
   })
 
   it('密码不合规时逐条显示后端返回的规则', async () => {
@@ -212,7 +239,11 @@ describe('LoginView 跳转与已登录状态', () => {
     expect(wrapper.text()).toContain(t('auth_signed_in_title'))
     expect(wrapper.text()).toContain(account.display_name)
 
-    await wrapper.find('.secondary-button').trigger('click')
+    const signOutButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === t('auth_sign_out_button'))
+    expect(signOutButton).toBeDefined()
+    await signOutButton?.trigger('click')
     await flushPromises()
 
     expect(authMocks.signOut).toHaveBeenCalledOnce()

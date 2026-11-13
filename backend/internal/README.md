@@ -1,18 +1,20 @@
-# 数据管理层 · 内部实现（backend/internal）
+> English | [简体中文](./README.zh-CN.md)
 
-不对外暴露的实现代码（Go 的 `internal/` 约定：只能被本模块导入）。
+# Data management layer · internal packages (backend/internal)
 
-| 子目录 | 作用 |
+Implementation code that is not exposed publicly (Go's `internal/` rule: only this module can import it).
+
+| Package | Purpose |
 | --- | --- |
-| `api/` | HTTP 接口层，见 [api/README.md](./api/README.md) |
-| `auth/` | 密码哈希、密码策略与校验（bcrypt），见 [auth/README.md](./auth/README.md) |
-| `codes/` | 状态码（语言无关，文案由前端翻译），见 [codes/README.md](./codes/README.md) |
-| `compute/` | 数据处理层客户端，见 [compute/README.md](./compute/README.md) |
-| `ratelimit/` | 登录失败限流（按昵称 / 地址），见 [ratelimit/README.md](./ratelimit/README.md) |
-| `session/` | 登录会话存储（Redis / 内存），见 [session/README.md](./session/README.md) |
-| `store/` | 数据库连接、GORM 模型与迁移，见 [store/README.md](./store/README.md) |
-| `tasks/` | 任务排队与执行（异步），见 [tasks/README.md](./tasks/README.md) |
-| `traceid/` | 请求编号的生成、校验与传递（三层日志追踪），见 [traceid/README.md](./traceid/README.md) |
-| `users/` | 账号注册与登录校验，见 [users/README.md](./users/README.md) |
-| `env/` | 环境变量读取（带默认值），见 [env/README.md](./env/README.md) |
-| `testutil/` | 只给测试用的共享工具（临时数据库），见 [testutil/README.md](./testutil/README.md) |
+| `api/` | HTTP interface layer, see [api/README.md](./api/README.md) |
+| `auth/` | Password hashing, password policy, and validation (bcrypt), see [auth/README.md](./auth/README.md) |
+| `codes/` | Status codes (language-neutral; copy is translated by the frontend), see [codes/README.md](./codes/README.md) |
+| `compute/` | Data processing layer client, see [compute/README.md](./compute/README.md) |
+| `ratelimit/` | Login failure rate limiting (per display name / address), see [ratelimit/README.md](./ratelimit/README.md) |
+| `session/` | Login session storage (Redis / memory), see [session/README.md](./session/README.md) |
+| `store/` | Database connection, GORM models, and migrations, see [store/README.md](./store/README.md) |
+| `tasks/` | Task queueing and execution (asynchronous), see [tasks/README.md](./tasks/README.md) |
+| `traceid/` | Request ID generation, validation, and propagation (three-layer log tracing), see [traceid/README.md](./traceid/README.md) |
+| `users/` | Account registration and login validation, see [users/README.md](./users/README.md) |
+| `env/` | Environment variable reading (with defaults), see [env/README.md](./env/README.md) |
+| `testutil/` | Shared test-only helpers (temporary database), see [testutil/README.md](./testutil/README.md) |

@@ -1,19 +1,26 @@
-# 前端 · 页面（frontend/src/views）
+> English | [简体中文](./README.zh-CN.md)
 
-每个文件是一个页面组件，地址在 [`../router.ts`](../router.ts) 里登记。
+# Frontend · Pages (frontend/src/views)
 
-| 文件 | 地址 | 现在做什么 | 还缺什么 |
+Each file is a page component; routes are registered in [`../router.ts`](../router.ts).
+
+| File | Route | What it does now | What is still missing |
 | --- | --- | --- | --- |
-| `HomeView.vue` | `/#/` | 说明平台能做什么、三步上手、支持范围；后台服务连通检查 | — |
-| `PredictView.vue` | `/#/predict` | 化学式输入框（即时写法校验）+ 示例快捷选择 + 开始预测（创建任务后跳到结果页） | — |
-| `ResultView.vue` | `/#/result/:taskId` | 轮询任务进度（排队中 → 计算中 → 已完成）、取消排队中的任务、失败原因与耗时、断网重试；成功后展示三维结构与结果解释 | — |
-| `LoginView.vue` | `/#/login` | 登录与注册共用一张表单（切换模式、再输一次密码）、密码规则逐条提示、已登录时显示当前账号与退出 | — |
+| `HomeView.vue` | `/#/` | Explains what the platform does, three steps to start, supported range; background service connectivity check | — |
+| `PredictView.vue` | `/#/predict` | Formula input (instant syntax validation) + example shortcuts + start prediction (creates a task and navigates to the result page) | — |
+| `ResultView.vue` | `/#/result/:taskId` | Polls task progress (queued → running → finished), cancels queued tasks, shows failure reason and duration, retries after network loss; on success shows the 3D structure and result explanation | — |
+| `LoginView.vue` | `/#/login` | Login and registration share one form (mode switch, repeat password, optional security question), password rules shown one by one, forgot-password link, current account and sign-out when signed in | — |
+| `ResetPasswordView.vue` | `/#/reset-password` | Looks up the security question by nickname, collects the answer and a new password; the backend signs the student in on success | — |
+| `AccountView.vue` | `/#/account` | Signed-in account settings: change password and set / update the security question | — |
+| `HistoryView.vue` | `/#/history` | Lists the signed-in account's predictions newest first, links to each result and loads more pages | — |
 
-## 约定
+## Conventions
 
-- 页面只通过 `../locales` 的 `t()` 取词，不写死任何一种语言的文字。
-- 登录状态只读 [`../session.ts`](../session.ts) 的 `signedInUser`；页面不自己解析 Cookie，也不自己记账号。
-- 登录成功后回到进入登录页之前的站内地址（`?redirect=`），站外地址一律忽略。
-- 颜色、按钮、页面容器等共用样式在 `../styles.css`；只属于某个页面的样式写在组件的 `<style scoped>` 里。
-- 结果页的地址里带任务编号（`/#/result/<编号>`）：编号从路由参数取，刷新后还能回到同一个任务。
-- 页面骨架里暂时没做完的区域用 `placeholder-panel` 说明“以后这里有什么”，不留空白，也不假装能用。
+- Pages fetch text only through `t()` from `../locales`; never hard-code text in any language.
+- Sign-in state comes only from `signedInUser` in [`../session.ts`](../session.ts); pages do not parse cookies or store accounts themselves.
+- After sign-in, return to the in-site address from before the login page (`?redirect=`); external addresses are always ignored.
+- Shared styles such as colors, buttons, and page containers live in `../styles.css`; styles specific to one page belong in the component's `<style scoped>`.
+- The result page address contains the task ID (`/#/result/<id>`): the ID comes from the route parameter, so refreshing returns to the same task.
+- History only contains tasks created while signed in; anonymous tasks have no owner and are not shown.
+- Password change and security-question setup both require the current password; the forms stay on the page and show translatable errors.
+- Unfinished areas of the page skeleton use a `placeholder-panel` to explain "what will be here later"; no blank space, and no pretending it already works.

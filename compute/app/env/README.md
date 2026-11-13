@@ -1,9 +1,11 @@
-# 数据处理层 · 环境配置（compute/app/env）
+> English | [简体中文](./README.zh-CN.md)
 
-统一读取环境变量，未设置时返回默认值（`.env` 位于 `compute/` 根目录，可缺省）。
+# Data processing layer · Environment configuration (compute/app/env)
 
-| 名称 | 作用 |
+Reads environment variables uniformly and returns defaults when a variable is unset (`.env` lives in `compute/` and is optional).
+
+| Name | Purpose |
 | --- | --- |
-| `get_env(key, fallback)` | 字符串配置 |
-| `get_env_int(key, fallback)` | 整数配置（如端口） |
-| `SERVICE_HOST` / `SERVICE_PORT` | 本层监听地址与端口（已解析好的值） |
+| `get_env(key, fallback)` | String setting |
+| `get_env_int(key, fallback)` | Integer setting (e.g. port) |
+| `SERVICE_HOST` / `SERVICE_PORT` | Listen address and port for this layer (already parsed values) |

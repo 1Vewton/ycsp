@@ -36,7 +36,7 @@
 ## 全局约定（动手前先定，避免返工）
 
 - [x] **G0.1 确认三层目录命名**：已按暂拟名 `frontend/`、`backend/`、`compute/` 落地；若要改名，需同步各 README 与根 README 导航
-- [x] **G0.2 确认数据库**：已定——连接层可切换（`YCSP_DB_DRIVER` / `YCSP_DB_DSN`），当前默认 SQLite（纯 Go 驱动，零安装），正式部署时再定库
+- [x] **G0.2 确认数据库**：已定——开发/测试用 SQLite（零安装），生产用 PostgreSQL；连接层可切换（`YCSP_DB_DRIVER` / `YCSP_DB_DSN`），生产环境拒绝 SQLite
 - [x] **G0.3 确认 CSP 教学范围**：已定——离子晶体（半径比规则）+ 金属晶体（实验结构表）+ 金刚石型共价晶体，详见 `compute/README.md`《算法思路》
 - [x] **G0.4 定义层间接口**：统一 JSON；应答为 `{ service, status, code, params? }`，后端只给语言无关的 `code`，文案由前端按语言翻译；端口 8000/8001/5173
 - [x] **G0.5 定义命名与代码规范**：已按 `AGENTS.md` 执行（完整单词命名、面向用户文案全中文、术语首次出现给通俗解释）
@@ -98,7 +98,7 @@
 - [x] **3.1** 页面骨架：首页（平台能干什么）、预测页、结果页
 - [x] **3.2** 输入组件：让学生输入 / 选择化学组成（带即时校验与中文提示）
 - [x] **3.3** 调用数据管理层接口，实时展示任务进度
-- [x] **3.4** 晶体结构三维可视化（3Dmol.js；结果页按需加载，WebGL 不可用时保留文字说明）
+- [x] **3.4** 晶体结构三维可视化（现用 Three.js；结果页按需加载，WebGL 不可用时保留文字说明）
 - [x] **3.5** 结果解释区：把结构类型、晶胞参数用中学生能懂的话讲清楚
 - [x] **3.6** 错误提示：后端每个 `code` 都有对应文案，并按当前语言显示（`npm run check-codes` 在 CI 中守护；未知 code 用 `unknown_code` 兜底）
 - [x] **3.7** 写 `frontend/README.md`：职责、页面结构、与后端接口约定、限制
@@ -111,7 +111,7 @@
 **验收标准**：从界面输入到看到结果，全流程无手工干预、无英文报错。
 
 - [x] **4.1** 在真实数据上跑通“输入 → 计算 → 存储 → 展示”完整流程
-- [ ] **4.2** 处理并发与超时（多人同时用、计算卡住时给出中文提示）
+- [x] **4.2** 处理并发与超时（多人同时用、计算卡住时给出中文提示）
 - [ ] **4.3** 跨层错误传播测试：Python 报错，前端要显示中文解释
 - [ ] **4.4** 用课本经典例子做端到端回归测试
 
@@ -134,7 +134,7 @@
 | Q1 | 三层目录到底叫什么名字？ | 定不下来没法建目录、没法写导航 | G0.1、阶段 0 |
 | Q2 | 数据库用哪个？ | 影响 GORM 配置与部署方式 | G0.2、2.1 |
 | Q3 | CSP 教学覆盖哪些内容、学生做什么？（已定：离子 + 金属 + 金刚石型共价，见《进度记录》2026-10-20） | 决定算法与界面，是最大变量 | G0.3、1.3、阶段 3 |
-| Q4 | 晶体结构怎么可视化、用什么库？（已定：3Dmol.js，结果页按需加载；理由见《进度记录》2026-10-25） | 直接影响前端工作量 | 3.4 |
+| Q4 | 晶体结构怎么可视化、用什么库？（现用 Three.js，结果页按需加载；严格 CSP 下不需要 unsafe-eval，见《进度记录》2026-11-09） | 直接影响前端工作量 | 3.4 |
 | Q5 | 部署到哪里（本地 / 服务器 / 校园网）？ | 影响阶段 5 的做法 | 5.5 |
 
 ## 进度记录
@@ -179,4 +179,10 @@
 | 2026-11-02 | — | 三层日志追踪：统一 `X-Request-ID`；前端每次请求生成并记录，数据管理层中间件沿用/生成并写回，数据处理层沿用/生成并记录；异步任务把编号存进 `prediction_tasks.trace_id`，worker 调计算层时继续使用 | 新增 18 个测试（后端 10、计算层 5、前端 3）；日志不记请求体与密码；按 request_id 可串起三层 |
 | 2026-11-02 | 3 | 完成 3.7：`frontend/README.md` 补齐职责、页面结构（4 个路由表）、与后端接口约定（统一信封 / code 文案 / Cookie / 异步任务 / X-Request-ID / 同源部署）与已知限制；同步 `src/README.md` 的 api 目录说明 | 逐项对照 3.7 原文检查；文档链接到 backend README、src/api、src/views、tests |
 | 2026-11-05 | 4 | 完成 4.1：真实三层跑通“界面输入 → 计算 → 存储 → 展示”。临时 SQLite + 内存会话启动 compute 8001、backend 8000、Vite 5173；Playwright 驱动预测页输入 CaF2 并点击预测，结果页正常显示 | 任务 succeeded（20 ms）；fluorite、配位数 8、a=5.381 Å、12 原子；DB trace_id=web-e759… 与后端/计算层日志一致；界面反馈“写法没问题，可以继续”，结果页含“已完成 / 萤石型 / 结果解释 / CaF2 / 5.38”与三维晶胞；控制台仅未登录 401 与 favicon 404，无页面报错；本次为一次性验收脚本，4.4 再固化为可重复回归测试 |
-
+| 2026-11-07 | 1 | 扩展覆盖范围：新增六方纤锌矿（ZnO / ZnS）与金红石型（MgF2 / TiO2）原型，补 Ti⁴⁺ 离子半径、实测晶胞参数与前端四方晶胞识别；新增 `rule_wurtzite_experimental`、`rule_rutile_experimental`、`caveat_polymorph` 中英文案 | compute 138 通过 / 覆盖率 98.08%；frontend 97 通过（type-check、check-codes、build 通过）；ZnO a=3.2498 Å、c=5.2066 Å，ZnS a=3.8230 Å、c=6.2610 Å，MgF2 a=4.6210 Å、c=3.0520 Å，TiO2 a=4.5937 Å、c=2.9587 Å |
+| 2026-11-07 | 2 | 账号与记录：登录后修改密码、安全问题自助重置、按账号分页的预测记录；新增 `users.security_question` / `security_answer_hash` 字段与 `GET /api/users/me/tasks` 接口；前端新增账号设置、找回密码、我的记录页面与顶栏入口 | backend `go test ./...` 全通过；frontend 120 通过（type-check、check-codes、build 通过）；check-codes 67 code / 254 文案；compute 138 通过 / 覆盖率 98.08% |
+| 2026-11-09 | — | 修文档与代码不一致：`frontend/src/README.md` 与中文版的路由表补齐登录、找回密码、账号设置、预测记录；`frontend/src/router.ts` 顶部注释同步；`TASKS.md` 进度表去掉断表空行 | 只改文档与注释，未改行为；路由以 `frontend/src/router.ts` 为准 |
+| 2026-11-09 | 2 | 修复队列满：任务服务每秒补扫 pending 任务，并用内存集合避免同一任务重复入队；队列满时任务不再等到重启，队列腾出后自动重算 | 新增 `tasks.QueueCapacity` 导出常量与回归测试（阻塞 worker 填满队列，溢出任务自动完成）；`go test ./...` 全通过 |
+| 2026-11-09 | 3 | 三维渲染从 3Dmol 换成 Three.js：新增 `structureScene.ts`（纯几何）与 `structureRenderer.ts`（按需加载的球棍 / 晶胞 / 取景 / 资源释放），删除 CIF 转换与 3Dmol 依赖；新增 `check-csp` 脚本扫描构建产物中的 eval / Function 构造器 | frontend 123 个用例、type-check、build、check-csp 通过；主包约 292 kB（gzip 90.85 kB），Three.js chunk 约 563 kB（gzip 139.39 kB）；产物 0 处 eval / new Function |
+| 2026-11-09 | 4 | 完成 4.2：并发与超时——新增 compute_timeout，超时不再误报为连不上；compute 客户端支持可配置超时（默认 10 秒）；补超时（含响应体卡住）与 80 条并发创建回归测试；前端补 compute_timeout 中英文案与结果页提示测试；CI 增加 go test -race | backend go test ./... 与 go test -race ./... 全通过；frontend 124 个用例、type-check、check-codes 通过（68 code / 255 文案）；超时任务约 0.07 秒落成 failed / compute_timeout，80 条并发任务全部成功 |
+| 2026-11-12 | 2 | 把 SQLite 降为开发/测试驱动，生产改为一等公民 PostgreSQL：`YCSP_ENV=production` 拒绝 SQLite；连接池按驱动配置并启动 Ping；新增 `YCSP_DB_AUTO_MIGRATE`、`go run . -migrate-only` 与启动前 `EnsureSchema` 表校验；任务 worker 可配置（默认 SQLite 1、服务端库 4，范围 1~16）；测试辅助支持 Postgres 独立 schema，CI backend job 增加 Postgres service 与整套测试 | 新增连接池/配置/worker 并发/表校验测试；SQLite `go test ./...` 与 `go test -race ./...` 全通过；本地临时 Postgres 16 容器上 `go test ./...` 全通过（`store` / `tasks` / `api` / `users` 均跑真实 Postgres），并修掉并行测试 schema 重名问题（schema 名加入进程号） |

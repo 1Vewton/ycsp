@@ -18,7 +18,7 @@ interface ExampleGroup {
 }
 
 const exampleGroups: ExampleGroup[] = [
-  { labelTag: 'example_group_ionic', formulas: ['NaCl', 'CsCl', 'CaF2'] },
+  { labelTag: 'example_group_ionic', formulas: ['NaCl', 'CsCl', 'CaF2', 'ZnO', 'MgF2'] },
   { labelTag: 'example_group_covalent', formulas: ['C', 'Si', 'SiC'] },
   { labelTag: 'example_group_metallic', formulas: ['Cu', 'Fe', 'Mg'] },
 ]

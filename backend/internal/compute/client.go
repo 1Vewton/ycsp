@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -13,9 +15,9 @@ import (
 	"github.com/1Vewton/ycsp/backend/internal/traceid"
 )
 
-// predictTimeout 是单次预测的超时上限：计算本身是毫秒级，10 秒足够兜住卡死的情况，
-// 也避免后端为一次请求无限等待。
-const predictTimeout = 10 * time.Second
+// defaultPredictTimeout 是单次预测的默认超时上限：计算本身是毫秒级，
+// 10 秒足够兜住卡死的情况，也避免后端为一次请求无限等待。
+const defaultPredictTimeout = 10 * time.Second
 
 // Client 调用数据处理层的 POST /predict。
 type Client struct {
@@ -23,11 +25,20 @@ type Client struct {
 	httpClient *http.Client
 }
 
-// NewClient 按数据处理层地址创建客户端。
+// NewClient 按数据处理层地址创建客户端，使用默认超时。
 func NewClient(baseURL string) *Client {
+	return NewClientWithTimeout(baseURL, defaultPredictTimeout)
+}
+
+// NewClientWithTimeout 按指定超时创建客户端；测试可以把超时调短，
+// 需要调整上限的部署也可以用它。
+func NewClientWithTimeout(baseURL string, timeout time.Duration) *Client {
+	if timeout <= 0 {
+		timeout = defaultPredictTimeout
+	}
 	return &Client{
 		predictURL: strings.TrimRight(baseURL, "/") + "/predict",
-		httpClient: &http.Client{Timeout: predictTimeout},
+		httpClient: &http.Client{Timeout: timeout},
 	}
 }
 
@@ -51,12 +62,18 @@ func (client *Client) Predict(ctx context.Context, formula string) (Prediction, 
 
 	response, err := client.httpClient.Do(request)
 	if err != nil {
+		if isTimeout(err) {
+			return Prediction{}, &TimeoutError{URL: client.predictURL, Err: err}
+		}
 		return Prediction{}, &TransportError{URL: client.predictURL, Err: err}
 	}
 	defer response.Body.Close()
 
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
+		if isTimeout(err) {
+			return Prediction{}, &TimeoutError{URL: client.predictURL, Err: err}
+		}
 		return Prediction{}, &ProtocolError{
 			Problem:    ProblemReadBody,
 			StatusCode: response.StatusCode,
@@ -103,6 +120,15 @@ func (client *Client) Predict(ctx context.Context, formula string) (Prediction, 
 		}
 	}
 	return envelope.Prediction, nil
+}
+
+// isTimeout 判断请求失败是否因为超过时限：http.Client.Timeout 与上下文 deadline 都会走到这里。
+func isTimeout(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var networkError net.Error
+	return errors.As(err, &networkError) && networkError.Timeout()
 }
 
 // rejectionPayload 是上游拒绝输入时的应答形状。

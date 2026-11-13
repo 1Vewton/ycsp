@@ -86,6 +86,22 @@ describe('取词与占位符', () => {
     expect(warn).toHaveBeenCalledOnce()
   })
 
+  it('新增的晶胞形状、结构型与规则文案都已收录', async () => {
+    const { t } = await loadLocales()
+    const keys = [
+      'cell_shape_tetragonal',
+      'prototype_wurtzite',
+      'prototype_rutile',
+      'rule_wurtzite_experimental',
+      'rule_rutile_experimental',
+      'caveat_polymorph',
+    ]
+
+    for (const key of keys) {
+      expect(t(key)).not.toBe(key)
+    }
+  })
+
   it('登录页会逐条显示的密码规则都有文案', async () => {
     const { t, tCode } = await loadLocales()
     const params = { min_length: 8, max_bytes: 72 }

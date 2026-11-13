@@ -1,18 +1,26 @@
-# 前端 · 检查脚本（frontend/scripts）
+> English | [简体中文](./README.zh-CN.md)
 
-给开发和 CI 用的独立脚本，不参与浏览器构建。
+# Frontend · Check scripts (frontend/scripts)
 
-| 文件 | 作用 |
+Standalone scripts for development and CI; they are not part of the browser build.
+
+| File | Purpose |
 | --- | --- |
-| `check-codes.mjs` | 检查 backend / compute 的每个 code 在 `src/locales/en.ts` 与 `zh.ts` 里都有文案；缺一条即失败 |
+| `check-codes.mjs` | Checks that every backend / compute code has copy in both `src/locales/en.ts` and `zh.ts`; fails if one is missing |
+| `check-csp.mjs` | Scans `dist/assets/*.js` after a build for `eval`, `new Function`, and `Function()`; fails if any appears |
 
-## 怎么用
+## How to use
 
 ```powershell
 cd frontend
 npm run check-codes
+
+npm run build
+npm run check-csp
 ```
 
-## 为什么放在前端
+## Why it lives in the frontend
 
-错误码的文案由前端维护，但 code 的“源头”在另外两层。脚本直接读 `../backend/internal/codes/codes.go` 与 `../compute/app/constants/codes.py`，不手工维护第二份清单；CI 的 frontend 任务会运行它，新增 code 忘记补文案时会直接失败。
+Error-code copy is maintained by the frontend, but the codes originate in the other two layers. The script reads `../backend/internal/codes/codes.go` and `../compute/app/constants/codes.py` directly instead of maintaining a second list; the CI frontend job runs it, so forgetting copy for a new code fails the build.
+
+`check-csp.mjs` reads the production bundle, so run `npm run build` first. A strict Content-Security-Policy blocks `eval` and `Function` constructors; the 3D view must not need `unsafe-eval`, and CI runs this check right after the build.

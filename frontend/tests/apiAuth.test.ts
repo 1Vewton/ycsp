@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  changePassword,
   fetchCurrentUser,
+  fetchPasswordResetQuestion,
   registerAccount,
+  resetPassword,
   signIn,
   signOut,
+  updateSecurityQuestion,
   type AccountUser,
 } from '../src/api/auth'
 import { ApiError } from '../src/api/client'
@@ -45,7 +49,7 @@ beforeEach(() => {
 })
 
 describe('账号请求', () => {
-  it('注册：POST /api/users，只提交昵称与密码', async () => {
+  it('注册：POST /api/users，提交昵称、密码与可选安全问题', async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({ status: 'ok', code: 'user_registered', user: account }),
     )
@@ -55,7 +59,12 @@ describe('账号请求', () => {
       '/api/users',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ display_name: '小明', password: 'Passw0rd!' }),
+        body: JSON.stringify({
+          display_name: '小明',
+          password: 'Passw0rd!',
+          security_question: '',
+          security_answer: '',
+        }),
       }),
     )
     expect(requestHeaders().get('Content-Type')).toBe('application/json')
@@ -96,6 +105,80 @@ describe('账号请求', () => {
       expect.objectContaining({ method: 'GET' }),
     )
     expect(requestHeaders().get('X-Request-ID')).toMatch(/^web-/)
+  })
+
+  it('修改密码：PUT /api/users/me/password', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ status: 'ok', code: 'password_changed', user: account }),
+    )
+
+    await expect(changePassword('old-pass', 'new-pass')).resolves.toEqual(account)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/users/me/password',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ current_password: 'old-pass', new_password: 'new-pass' }),
+      }),
+    )
+  })
+
+  it('设置安全问题：PUT /api/users/me/security-question', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ status: 'ok', code: 'security_question_updated', user: account }),
+    )
+
+    await expect(
+      updateSecurityQuestion('old-pass', '最喜欢的元素？', '钠'),
+    ).resolves.toEqual(account)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/users/me/security-question',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          current_password: 'old-pass',
+          security_question: '最喜欢的元素？',
+          security_answer: '钠',
+        }),
+      }),
+    )
+  })
+
+  it('取安全问题：POST /api/password-resets/question', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        status: 'ok',
+        code: 'password_reset_question',
+        security_question: '最喜欢的元素？',
+      }),
+    )
+
+    await expect(fetchPasswordResetQuestion('小明')).resolves.toBe('最喜欢的元素？')
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/password-resets/question',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ display_name: '小明' }),
+      }),
+    )
+  })
+
+  it('重置密码：POST /api/password-resets', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ status: 'ok', code: 'password_reset', user: account }),
+    )
+
+    await expect(resetPassword('小明', '钠', 'new-pass')).resolves.toEqual(account)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/password-resets',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          display_name: '小明',
+          security_answer: '钠',
+          new_password: 'new-pass',
+        }),
+      }),
+    )
   })
 })
 

@@ -1,35 +1,38 @@
-# 数据管理层 · 数据库（backend/internal/store）
+> English | [简体中文](./README.zh-CN.md)
 
-数据库连接、GORM 模型与自动迁移。表结构的设计（字段、约束、状态机）见 [../../README.md](../../README.md)《数据表》。
+# Data management layer · Database (backend/internal/store)
 
-| 文件 | 作用 |
+Database connection, GORM models, and automatic migrations. Table design (fields, constraints, state machine) is in [../../README.md](../../README.md) "Data tables".
+
+| File | Purpose |
 | --- | --- |
-| `models.go` | `User` / `PredictionTask` / `StructureResult`，以及任务状态与晶体类型的取值 |
-| `store.go` | 连接（引擎可切换）与 `Migrate`（建表 / 补列） |
-| `store_test.go` | 迁移、存取与 `Preload`、外键行为（级联删除 / 置空）、错误配置 |
+| `models.go` | `User` / `PredictionTask` / `StructureResult`, plus task-status and crystal-family values |
+| `store.go` | Connection (switchable engine) and `Migrate` (create tables / add columns) |
+| `store_test.go` | Migration, reads/writes and `Preload`, foreign-key behavior (cascade delete / set null), invalid configuration |
 
-## 切换数据库
+## Switching databases
 
-| 变量 | 默认值 | 说明 |
+| Variable | Default | Meaning |
 | --- | --- | --- |
-| `YCSP_DB_DRIVER` | `sqlite` | `sqlite` / `postgres` / `mysql` |
-| `YCSP_DB_DSN` | `ycsp.db`（仅 sqlite） | sqlite 是数据库文件路径；postgres / mysql 填各自连接串 |
+| `YCSP_ENV` | `development` | `production` rejects SQLite |
+| `YCSP_DB_DRIVER` | `sqlite` | `sqlite` (development/test only) / `postgres` / `mysql` |
+| `YCSP_DB_DSN` | `ycsp.db` (SQLite only) | SQLite uses a database file path; postgres / mysql use their own connection strings |
 
-postgres / mysql 没有默认值：连接串含地址与账号，猜错只会更难排查，所以缺 DSN 时启动直接报错。
+SQLite is the zero-install option for local development and tests. Production uses PostgreSQL.
+postgres / mysql have no defaults: a connection string contains an address and credentials, and a wrong guess only makes diagnosis harder, so startup fails when the DSN is missing.
 
-## 两个实现细节
+## Implementation details
 
-- **SQLite 的外键检查默认是关的**：`Open` 会自动给连接串补 `_pragma=foreign_keys(1)`，
-  否则 `ON DELETE CASCADE` / `SET NULL` 都不生效（有测试守着）。
-- **SQLite 连接数限制为 1**：它同一时刻只允许一个写入者，连接开多了会频繁报 `database is locked`。
-  教学场景并发很低，这个限制够用；换成 PostgreSQL 时只有 sqlite 分支受限。
+- **Startup Ping**: `Open` pings the database with a 5-second timeout, so a wrong DSN or an unreachable server fails at startup instead of on the first request.
+- **Connection pool**: SQLite is fixed at 1 open / 1 idle connection because it allows only one writer; Postgres / MySQL default to 20 open / 10 idle / 30-minute lifetime. `MaxOpenConns` / `MaxIdleConns` / `ConnMaxLifetime` can be overridden through `YCSP_DB_MAX_OPEN_CONNS` / `YCSP_DB_MAX_IDLE_CONNS` / `YCSP_DB_CONN_MAX_LIFETIME_SECONDS`.
+- **SQLite foreign-key checks are off by default**: `Open` automatically appends `_pragma=foreign_keys(1)` to the connection string; otherwise `ON DELETE CASCADE` / `SET NULL` do not work (covered by tests). Postgres enforces foreign keys natively.
+- **Migrations**: development/test auto-migrate at startup (`YCSP_DB_AUTO_MIGRATE=true`); production defaults to `false`, and `EnsureSchema` verifies that the three tables exist before the server starts. Run `go run . -migrate-only` once before deployment.
 
-## 约定
+## Conventions
 
-- 外键只在“子表”一侧声明（`PredictionTask.User`、`StructureResult.Task`）。
-  父子两侧都写会生成两条约束，其中一条不带级联，删除时会被它挡住。
-- 密码只存 bcrypt 哈希（`users.password_hash`），哈希在 [`../auth`](../auth/README.md) 里生成与校验，模型里不出现明文。
-- JSON 列（`error_params` / `atoms` / `rule` / `caveats`）用文本存，
-  具体结构由数据处理层定义，表里不重复描述。
+- Declare foreign keys only on the "child" side (`PredictionTask.User`, `StructureResult.Task`). Declaring them on both sides creates two constraints, one without cascade, and deletion is blocked by it.
+- Passwords are stored only as bcrypt hashes (`users.password_hash`); hashes are created and verified in [`../auth`](../auth/README.md), and the model never contains plaintext.
+- Security question answers are stored only as bcrypt hashes (`users.security_answer_hash`); the question itself is stored as text for the student to read.
+- JSON columns (`error_params` / `atoms` / `rule` / `caveats`) are stored as text; their structure is defined by the data processing layer and is not described twice in the tables.
 
-测试：`go test ./internal/store/`
+Tests: `go test ./internal/store/` uses temporary SQLite by default. Set `YCSP_TEST_DB_DRIVER=postgres` and `YCSP_TEST_DB_DSN=...` to run the same suite against PostgreSQL; each test creates its own schema and drops it afterwards.

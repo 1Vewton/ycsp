@@ -91,6 +91,7 @@ IONIC_RADII_PICOMETERS: dict[tuple[str, int], float] = {
     ("Ca", 2): 100.0,
     ("Ba", 2): 135.0,
     ("Al", 3): 53.5,
+    ("Ti", 4): 60.5,
     ("Zn", 2): 74.0,
     ("Fe", 2): 78.0,
     ("F", -1): 133.0,

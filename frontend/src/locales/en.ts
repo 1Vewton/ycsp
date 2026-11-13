@@ -7,6 +7,8 @@ export const enMessages = {
   compute_healthy: 'The background services are running, so you can start predicting.',
   compute_unreachable:
     'The background computing service is not responding ({url}). Please tell your teacher.',
+  compute_timeout:
+    'This calculation is taking too long, probably because many people are using the platform. Please try again later; if it keeps happening, tell your teacher.',
   compute_bad_status:
     'The background computing service returned an unexpected status ({status_code}). Please tell your teacher.',
   compute_read_failed:
@@ -23,6 +25,10 @@ export const enMessages = {
     'The cation radius is {ratio} times the anion radius. The smaller the ratio, the fewer opposite ions fit around it; by this ratio each cation touches {coordination_number} anions.',
   rule_experimental_override:
     'The radius-ratio rule would predict {rule_coordination_number}-fold coordination, but the measured structure is different, so the experimental data is used here (radius ratio {ratio}).',
+  rule_wurtzite_experimental:
+    'The measured structure is the wurtzite type (hexagonal ZnS): each ion is surrounded by {coordination_number} opposite ions in a tetrahedral arrangement. The radius ratio {ratio} is shown only for reference.',
+  rule_rutile_experimental:
+    'With a 1:2 ion ratio the usual prediction is the fluorite type ({rule_coordination_number}-coordination). At radius ratio {ratio} the measured structure is the rutile type, where each cation touches {coordination_number} anions, so the experimental structure is used here.',
   rule_fluorite_stoichiometry:
     'The cation to anion ratio is {cation_count}:{anion_count} and the radius ratio {ratio} falls in the 8-coordination range: the large ions form a face-centered cubic array (one at every corner and at the centre of every face), and the small ions fill the tetrahedral holes between four large ions. This is the fluorite type.',
   rule_antifluorite_stoichiometry:
@@ -39,6 +45,8 @@ export const enMessages = {
     'The radius ratio {ratio} is very close to the boundary {boundary}, so either coordination number is possible.',
   caveat_confirmed_by_experiment:
     'The measured structure agrees with the reasoning above, so it can be trusted.',
+  caveat_polymorph:
+    'A substance can have more than one crystal structure (polymorphism); this result uses the experimentally measured form. ZnS, for example, also has a cubic zinc blende form.',
   caveat_low_ionic_character:
     'The electronegativity difference (how differently the two atoms pull electrons) is only {difference} (below {threshold}), so the bonding is noticeably covalent; such crystals sit between ionic and covalent crystals.',
   caveat_metal_structure_experimental:
@@ -94,6 +102,22 @@ export const enMessages = {
   session_unavailable:
     'The sign-in service is unavailable right now. Please try again later or tell your teacher.',
   too_many_attempts: 'Too many attempts. Please try again in about {retry_after_minutes} minute(s).',
+  password_changed: 'Your password has been updated. Use the new password next time you sign in.',
+  password_reset: 'Your password has been reset and you are signed in.',
+  password_reset_question: 'Please answer your security question.',
+  security_question_updated: 'Your security question has been saved.',
+  current_password_incorrect: 'The current password is not correct. Please try again.',
+  password_unchanged: 'The new password is the same as the old one. Please choose another.',
+  security_question_invalid:
+    'The security question must be {min_length} to {max_length} characters long.',
+  security_answer_invalid:
+    'The answer must be at least {min_length} characters and at most {max_bytes} bytes.',
+  security_setup_incomplete: 'Fill in both the security question and the answer, or leave both empty.',
+  password_reset_unavailable:
+    'This nickname cannot reset the password by itself (it may not have a security question). Check the nickname or ask your teacher for help.',
+  password_reset_failed:
+    'The nickname or the security answer is not correct. Please check and try again; if you forgot it, ask your teacher for help.',
+  task_history: 'Prediction history loaded.',
   // Password rules (translate each entry of params.rules)
   password_rule_too_short: 'Use at least {min_length} characters.',
   password_rule_too_long: 'The password is too long (at most {max_bytes} bytes).',
@@ -104,8 +128,10 @@ export const enMessages = {
   prototype_rock_salt: 'Rock salt type',
   prototype_cesium_chloride: 'Cesium chloride type',
   prototype_zinc_blende: 'Zinc blende (cubic ZnS) type',
+  prototype_wurtzite: 'Wurtzite (hexagonal ZnS) type',
   prototype_fluorite: 'Fluorite type',
   prototype_antifluorite: 'Antifluorite type',
+  prototype_rutile: 'Rutile type',
   prototype_diamond: 'Diamond type',
   prototype_face_centered_cubic: 'Face-centered cubic close packing',
   prototype_body_centered_cubic: 'Body-centered cubic packing',
@@ -135,7 +161,7 @@ export const enMessages = {
     'You will see how big the unit cell (the smallest repeating unit of a crystal) is, where the atoms sit, and how reliable the answer is.',
   home_supported_title: 'What it can predict today',
   home_supported_ionic:
-    'Ionic crystals: positively and negatively charged ions held together by electric attraction, for example NaCl, CsCl, CaF2.',
+    'Ionic crystals: positively and negatively charged ions held together by electric attraction, for example NaCl, CsCl, CaF2, ZnO.',
   home_supported_covalent:
     'Covalent crystals: atoms share electron pairs, for example C (diamond), Si, SiC.',
   home_supported_metallic:
@@ -180,7 +206,7 @@ export const enMessages = {
   structure_reset_view: 'Reset view',
   structure_canvas_label: '3D view of the crystal structure',
   structure_webgl_unavailable:
-    'This device cannot show the 3D model because the browser does not support WebGL. Please try another device or tell your teacher.',
+    'This device cannot show the 3D model because the browser is too old for WebGL 2. Please try another device or tell your teacher.',
   structure_render_failed:
     'The 3D model could not be loaded. Please refresh the page; if it keeps failing, tell your teacher.',
   // Explanation
@@ -203,6 +229,8 @@ export const enMessages = {
   family_metallic: 'Metallic crystal: metal atoms packed together by metallic bonding.',
   cell_shape_cubic:
     'This is a cubic unit cell: all three edges are equal and all angles are 90°.',
+  cell_shape_tetragonal:
+    'This is a tetragonal unit cell: the two base edges are equal, the third edge is different, and all angles are 90°.',
   cell_shape_hexagonal:
     'This is a hexagonal unit cell: two edges of the base are equal with a 120° angle, and the third edge is perpendicular to the base.',
   cell_shape_general:
@@ -219,6 +247,8 @@ export const enMessages = {
   auth_sign_out_button: 'Sign out',
   auth_sign_out_busy: 'Signing out…',
   auth_fields_required: 'Please fill in the nickname and password.',
+  auth_nickname_required: 'Please enter your nickname first.',
+  auth_reset_fields_required: 'Please fill in the answer and the new password.',
   auth_password_mismatch: 'The two passwords do not match. Please type them again.',
   login_heading: 'Sign in or create an account',
   login_intro:
@@ -242,6 +272,65 @@ export const enMessages = {
   login_switch_to_sign_in: 'Already have an account? Sign in',
   login_anonymous_hint: 'No account needed to try a prediction.',
   login_anonymous_link: 'Predict without signing in',
+  nav_history: 'My history',
+  login_forgot_password_link: 'Forgot your password?',
+  login_security_question_label: 'Security question (optional)',
+  login_security_question_placeholder: 'For example: What is my favourite element?',
+  login_security_answer_label: 'Security answer (optional)',
+  login_security_answer_placeholder: 'For example: sodium',
+  login_security_hint:
+    'Set both to reset the password yourself later. The answer ignores case and extra spaces.',
+  auth_security_incomplete: 'Fill in both the security question and the answer, or leave both empty.',
+  account_heading: 'Account settings',
+  account_intro: 'Change your password or set the security question used to reset it.',
+  account_signed_out_hint: 'Sign in to change your account settings.',
+  account_sign_in_link: 'Sign in',
+  account_password_title: 'Change password',
+  account_password_intro:
+    'Enter your current password first. You stay signed in on this device after the change.',
+  account_current_password_label: 'Current password',
+  account_new_password_label: 'New password',
+  account_new_password_confirm_label: 'New password again',
+  account_change_password_button: 'Save new password',
+  account_password_submitting: 'Saving…',
+  account_password_changed: 'Password updated. Use the new password next time you sign in.',
+  account_security_title: 'Security question',
+  account_security_intro:
+    'With a security question you can reset the password yourself. Changing it needs your current password.',
+  account_security_current_question: 'Current question: {question}',
+  account_security_not_set: 'No security question has been set yet.',
+  account_security_question_label: 'Security question',
+  account_security_question_placeholder: 'For example: What is my favourite element?',
+  account_security_answer_label: 'Answer',
+  account_security_answer_placeholder: 'For example: sodium',
+  account_security_setup_button: 'Save security question',
+  account_security_submitting: 'Saving…',
+  account_security_updated: 'Security question saved.',
+  reset_heading: 'Reset your password',
+  reset_intro:
+    'Enter your nickname, answer the security question you set, then choose a new password.',
+  reset_display_name_label: 'Nickname',
+  reset_lookup_button: 'Next',
+  reset_lookuping: 'Looking up the security question…',
+  reset_question_intro: 'Your security question is:',
+  reset_answer_label: 'Answer',
+  reset_answer_placeholder: 'Enter your answer',
+  reset_new_password_label: 'New password',
+  reset_new_password_confirm_label: 'New password again',
+  reset_submit_button: 'Reset password and sign in',
+  reset_submitting: 'Resetting…',
+  reset_back_to_login: 'Remembered it? Go to sign in',
+  history_heading: 'My prediction history',
+  history_intro:
+    'Only predictions created while signed in are listed; anonymous predictions are not saved to an account.',
+  history_sign_in_hint: 'Sign in to see your own prediction history.',
+  history_sign_in_link: 'Sign in',
+  history_empty: 'No predictions yet.',
+  history_empty_link: 'Make your first prediction',
+  history_load_more: 'Load more',
+  history_loading_more: 'Loading…',
+  history_showing: 'Showing {shown} of {total}',
+  history_open_button: 'View result',
   // Shared navigation
   back_home: 'Back to home',
   predict_another: 'Predict another',

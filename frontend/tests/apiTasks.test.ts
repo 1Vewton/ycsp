@@ -5,6 +5,7 @@ import {
   cancelTask,
   createTask,
   fetchTask,
+  fetchTaskHistory,
   fetchTaskResult,
   problemFromError,
 } from '../src/api/tasks'
@@ -163,5 +164,39 @@ describe('problemFromError', () => {
 
     expect(problemFromError(new TypeError('boom'))).toEqual({ code: 'request_failed' })
     expect(errorSpy).toHaveBeenCalledOnce()
+  })
+})
+
+describe('预测记录', () => {
+  it('GET /api/users/me/tasks 带分页参数并返回任务列表', async () => {
+    const page = {
+      tasks: [
+        {
+          id: 7,
+          formula: 'NaCl',
+          status: 'succeeded',
+          created_at: '2026-11-07T00:00:00Z',
+          finished_at: '2026-11-07T00:00:01Z',
+          duration_ms: 20,
+          result: { family: 'ionic', prototype: 'rock_salt', coordination_number: 6 },
+        },
+      ],
+      total: 1,
+      limit: 10,
+      offset: 20,
+    }
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'ok', code: 'task_history', ...page }))
+
+    await expect(fetchTaskHistory(10, 20)).resolves.toEqual(page)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/users/me/tasks?limit=10&offset=20',
+      expect.objectContaining({ method: 'GET' }),
+    )
+  })
+
+  it('成功信封缺 tasks 时报 internal_error', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'ok', code: 'task_history' }))
+
+    await expect(fetchTaskHistory()).rejects.toBeInstanceOf(ApiError)
   })
 })

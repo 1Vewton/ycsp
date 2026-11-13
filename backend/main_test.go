@@ -13,11 +13,17 @@ func clearSettings(t *testing.T) {
 	t.Helper()
 
 	for _, key := range []string{
+		"YCSP_ENV",
 		"YCSP_BACKEND_HOST",
 		"YCSP_BACKEND_PORT",
 		"YCSP_COMPUTE_BASE_URL",
 		"YCSP_DB_DRIVER",
 		"YCSP_DB_DSN",
+		"YCSP_DB_MAX_OPEN_CONNS",
+		"YCSP_DB_MAX_IDLE_CONNS",
+		"YCSP_DB_CONN_MAX_LIFETIME_SECONDS",
+		"YCSP_DB_AUTO_MIGRATE",
+		"YCSP_TASK_WORKERS",
 		"YCSP_SESSION_DRIVER",
 		"YCSP_REDIS_URL",
 		"YCSP_SESSION_LIFETIME_SECONDS",
@@ -48,11 +54,29 @@ func TestReadSettingsUsesDefaults(t *testing.T) {
 	if settings.computeBaseURL != "http://127.0.0.1:8001" {
 		t.Errorf("computeBaseURL = %q, want %q", settings.computeBaseURL, "http://127.0.0.1:8001")
 	}
+	if settings.environment != environmentDevelopment {
+		t.Errorf("environment = %q, want %q", settings.environment, environmentDevelopment)
+	}
+	if !settings.autoMigrate {
+		t.Error("autoMigrate should default to true outside production")
+	}
+	if settings.taskWorkers != sqliteDefaultTaskWorkers {
+		t.Errorf("taskWorkers = %d, want %d for sqlite", settings.taskWorkers, sqliteDefaultTaskWorkers)
+	}
 	if settings.database.Driver != store.DriverSQLite {
 		t.Errorf("database driver = %q, want %q", settings.database.Driver, store.DriverSQLite)
 	}
 	if settings.database.DSN != "ycsp.db" {
 		t.Errorf("database DSN = %q, want %q", settings.database.DSN, "ycsp.db")
+	}
+	if settings.database.MaxOpenConns != 0 || settings.database.MaxIdleConns != 0 {
+		t.Errorf(
+			"database pool = (%d, %d), want zero so the driver defaults apply",
+			settings.database.MaxOpenConns, settings.database.MaxIdleConns,
+		)
+	}
+	if settings.database.ConnMaxLifetime != 0 {
+		t.Errorf("database lifetime = %v, want zero (driver default)", settings.database.ConnMaxLifetime)
 	}
 	if settings.sessions.driver != "redis" {
 		t.Errorf("session driver = %q, want %q", settings.sessions.driver, "redis")
@@ -74,6 +98,102 @@ func TestReadSettingsUsesDefaults(t *testing.T) {
 	}
 	if settings.loginLimit.window != 15*time.Minute {
 		t.Errorf("login block window = %v, want 15m", settings.loginLimit.window)
+	}
+}
+
+func TestReadSettingsUsesProductionPostgresDefaults(t *testing.T) {
+	clearSettings(t)
+	t.Setenv("YCSP_ENV", environmentProduction)
+	t.Setenv("YCSP_DB_DRIVER", store.DriverPostgres)
+	t.Setenv("YCSP_DB_DSN", "host=db.local dbname=ycsp")
+
+	settings, err := readSettings()
+	if err != nil {
+		t.Fatalf("readSettings: %v", err)
+	}
+
+	if settings.environment != environmentProduction {
+		t.Errorf("environment = %q, want %q", settings.environment, environmentProduction)
+	}
+	if settings.autoMigrate {
+		t.Error("production should not auto-migrate by default")
+	}
+	if settings.taskWorkers != serverDefaultTaskWorkers {
+		t.Errorf("taskWorkers = %d, want %d for a server database", settings.taskWorkers, serverDefaultTaskWorkers)
+	}
+}
+
+func TestReadSettingsRejectsSQLiteInProduction(t *testing.T) {
+	clearSettings(t)
+	t.Setenv("YCSP_ENV", environmentProduction)
+
+	if _, err := readSettings(); err == nil {
+		t.Fatal("expected an error for sqlite in production")
+	}
+}
+
+func TestReadSettingsPrefersTaskWorkersAndPool(t *testing.T) {
+	clearSettings(t)
+	t.Setenv("YCSP_DB_DRIVER", store.DriverPostgres)
+	t.Setenv("YCSP_DB_DSN", "host=db.local dbname=ycsp")
+	t.Setenv("YCSP_TASK_WORKERS", "8")
+	t.Setenv("YCSP_DB_MAX_OPEN_CONNS", "30")
+	t.Setenv("YCSP_DB_MAX_IDLE_CONNS", "15")
+	t.Setenv("YCSP_DB_CONN_MAX_LIFETIME_SECONDS", "600")
+
+	settings, err := readSettings()
+	if err != nil {
+		t.Fatalf("readSettings: %v", err)
+	}
+
+	if settings.taskWorkers != 8 {
+		t.Errorf("taskWorkers = %d, want 8", settings.taskWorkers)
+	}
+	if settings.database.MaxOpenConns != 30 || settings.database.MaxIdleConns != 15 {
+		t.Errorf(
+			"database pool = (%d, %d), want (30, 15)",
+			settings.database.MaxOpenConns, settings.database.MaxIdleConns,
+		)
+	}
+	if settings.database.ConnMaxLifetime != 10*time.Minute {
+		t.Errorf("database lifetime = %v, want 10m", settings.database.ConnMaxLifetime)
+	}
+}
+
+func TestReadSettingsRejectsInvalidTaskWorkers(t *testing.T) {
+	for _, workers := range []string{"-1", "17"} {
+		clearSettings(t)
+		t.Setenv("YCSP_TASK_WORKERS", workers)
+		if _, err := readSettings(); err == nil {
+			t.Errorf("expected an error for YCSP_TASK_WORKERS=%s", workers)
+		}
+	}
+}
+
+func TestReadSettingsRejectsInvalidEnvironment(t *testing.T) {
+	clearSettings(t)
+	t.Setenv("YCSP_ENV", "staging")
+
+	if _, err := readSettings(); err == nil {
+		t.Fatal("expected an error for an unknown environment")
+	}
+}
+
+func TestReadSettingsRejectsInvalidAutoMigrate(t *testing.T) {
+	clearSettings(t)
+	t.Setenv("YCSP_DB_AUTO_MIGRATE", "yes")
+
+	if _, err := readSettings(); err == nil {
+		t.Fatal("expected an error for a non-boolean auto-migrate flag")
+	}
+}
+
+func TestReadSettingsRejectsNegativePoolValues(t *testing.T) {
+	clearSettings(t)
+	t.Setenv("YCSP_DB_MAX_OPEN_CONNS", "-1")
+
+	if _, err := readSettings(); err == nil {
+		t.Fatal("expected an error for a negative pool size")
 	}
 }
 

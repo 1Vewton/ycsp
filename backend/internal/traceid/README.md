@@ -1,16 +1,17 @@
-# 数据管理层 · 请求编号（backend/internal/traceid）
+> English | [简体中文](./README.zh-CN.md)
 
-一次请求在前端、数据管理层、数据处理层使用同一个 `X-Request-ID`，用于把三层日志串起来。
+# Data management layer · Request IDs (backend/internal/traceid)
 
-| 文件 | 作用 |
+One request uses the same `X-Request-ID` in the frontend, the data management layer, and the data processing layer, tying the three layers' logs together.
+
+| File | Purpose |
 | --- | --- |
-| `traceid.go` | 生成随机编号、校验外部传入的编号、在 `context.Context` 中存取编号 |
-| `traceid_test.go` | 生成、校验（拒绝换行与超长）、context 往返 |
+| `traceid.go` | Generate random IDs, validate externally supplied IDs, store/read IDs in `context.Context` |
+| `traceid_test.go` | Generation, validation (reject newlines and overlong values), context round-trip |
 
-## 规则
+## Rules
 
-- 头名统一为 `X-Request-ID`，最长 64 个字符。
-- 只接受字母、数字与 `-_.:`；换行等字符可能污染日志，一律拒绝并重新生成。
-- 前端生成 `web-…`，数据管理层兜底生成 `api-…`，数据处理层兜底生成 `compute-…`。
-- 异步任务会把创建任务时的编号存进 `prediction_tasks.trace_id`，worker 调用数据处理层时继续使用，
-  所以任务从创建到计算完成只有一个编号。
+- The header name is always `X-Request-ID`, at most 64 characters.
+- Only letters, digits, and `-_.:` are accepted; newlines and similar characters could pollute logs, so such IDs are rejected and regenerated.
+- The frontend generates `web-…`, the data management layer falls back to `api-…`, and the data processing layer falls back to `compute-…`.
+- Asynchronous tasks store the ID from task creation in `prediction_tasks.trace_id`; the worker keeps using it when calling the data processing layer, so a task has one ID from creation to completion.

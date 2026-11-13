@@ -1,35 +1,38 @@
+> English | [简体中文](./README.zh-CN.md)
+
 # ycsp
 
-面向青少年的 CSP（晶体结构预测）教学平台：输入物质的化学成分，预测它最可能形成的晶体结构。学生不需要任何计算或编程基础。
+A crystal structure prediction (CSP) teaching platform for teenagers: enter a chemical composition and see the crystal structure it is most likely to form. Students need no prior experience with computation or programming.
 
-## 项目定位
+## What this project is
 
-面向青少年，用户不预设任何计算或编程基础；以“中学生能否独立看懂并操作”为唯一验收标准。
+The platform is for teenagers, and assumes no background in computation or programming. The only acceptance criterion is whether a middle-school student can understand and operate it independently.
 
-## 整体架构
+## Architecture
 
-| 分层 | 职责 | 技术栈 |
+| Layer | Responsibility | Stack |
 | --- | --- | --- |
-| 前端 | 学生界面与晶体结构可视化 | TypeScript + Vue |
-| 数据管理 | 统一对外接口、数据存储、转发计算请求 | Go + Gin + GORM |
-| 数据处理 | 晶体结构预测与数值计算 | Python + FastAPI（数值计算按需引入 NumPy） |
+| Frontend | Student interface and crystal structure visualization | TypeScript + Vue |
+| Data management | Single public API, data storage, forwarding compute requests | Go + Gin + GORM |
+| Data processing | Crystal structure prediction and numerical work | Python + FastAPI (NumPy only when numerical work needs it) |
 
-请求流向：`前端(Vue) → 数据管理(Go) → 数据处理(Python)`；前端只与数据管理通信，由它再调用数据处理。
+Request flow: `Frontend (Vue) → Data management (Go) → Data processing (Python)`. The frontend talks only to the data management layer, which in turn calls the data processing layer.
 
-## 多语言
+For local development and tests the data management layer uses SQLite (zero install). Production uses PostgreSQL; see the [backend README](./backend/README.md) for the production configuration and migration step.
 
-产品要能切换界面语言，让不同语言的用户都能独立操作：
+## Languages
 
-- 默认中文，并支持英文（中/英可切换）。
-- 文案与代码分离：前端用语言包（见 `frontend/src/locales/`），不在组件里写死文字。
-- 后端只返回错误码与参数，由前端按当前语言翻译，避免把某种语言的提示写死在后端。
+The product must switch interface languages so that users of different languages can work independently:
 
-## 安装与启动
+- Chinese by default, with English also available (switchable).
+- Copy is separate from code: the frontend uses language packs (see `frontend/src/locales/`), and no text is hard-coded in components.
+- The backend returns only error codes and parameters; the frontend translates them into the current language, so no language-specific message is baked into the backend.
 
-需要 Go 1.25+、Node.js 22+、[uv](https://docs.astral.sh/uv/)（数据处理层用它管理 Python 依赖与虚拟环境），
-以及 [Redis](https://redis.io/)（保存登录会话；本地没有 Redis 时可临时用内存会话，见下）。
+## Install and run
 
-端口与地址都有默认值，直接就能跑；需要改的话，把对应层的 `.env.example` 复制为 `.env` 再编辑：
+Requires Go 1.25+, Node.js 22+, [uv](https://docs.astral.sh/uv/) (the data processing layer uses it to manage Python dependencies and the virtual environment), and [Redis](https://redis.io/) (stores login sessions; without a local Redis you can temporarily use in-memory sessions, see below).
+
+Ports and addresses have defaults, so everything works as-is. To change them, copy the corresponding `.env.example` to `.env` and edit it:
 
 ```powershell
 Copy-Item compute\.env.example compute\.env
@@ -37,33 +40,33 @@ Copy-Item backend\.env.example backend\.env
 Copy-Item frontend\.env.example frontend\.env
 ```
 
-然后在三个终端分别启动：
+Then start the three layers in three terminals:
 
 ```powershell
-# 数据处理层（默认 8001）
+# Data processing layer (default 8001)
 cd compute
 uv run python -m app.main
 
-# 数据管理层（8000）
+# Data management layer (8000)
 cd backend
 go mod tidy; go run .
 
-# 前端（5173）
+# Frontend (5173)
 cd frontend
 npm install; npm run dev
 ```
 
-打开 <http://localhost:5173/>，在首页点“检查后台服务”；若显示“后台服务正常，可以开始预测了。”即三层已打通。
+Open <http://localhost:5173/> and click "Check background services" on the home page. If it shows "The background services are running, so you can start predicting.", all three layers are connected.
 
-> 本地没有 Redis 时，把 `backend/.env` 里的 `YCSP_SESSION_DRIVER` 改成 `memory` 即可跑通注册与登录
-> （会话只存在进程内存里，重启后需要重新登录）。
+> Without a local Redis, set `YCSP_SESSION_DRIVER=memory` in `backend/.env` to run registration and login
+> (sessions live only in process memory and are lost after a restart).
 
-## 目录导航
+## Repository layout
 
-| 目录 | 分层 | 文档 |
+| Directory | Layer | Documentation |
 | --- | --- | --- |
-| `frontend/` | 前端 | [README](./frontend/README.md) |
-| `backend/` | 数据管理 | [README](./backend/README.md) |
-| `compute/` | 数据处理 | [README](./compute/README.md) |
+| `frontend/` | Frontend | [README](./frontend/README.md) |
+| `backend/` | Data management | [README](./backend/README.md) |
+| `compute/` | Data processing | [README](./compute/README.md) |
 
-CI 配置见 [`.github/README-workflow.md`](./.github/README-workflow.md)，开发计划见 [TASKS.md](./TASKS.md)。
+CI configuration is documented in [`.github/README-workflow.md`](./.github/README-workflow.md); the development plan is in [TASKS.md](./TASKS.md) (Chinese).

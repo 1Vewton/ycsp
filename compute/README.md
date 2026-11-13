@@ -1,27 +1,29 @@
-# 数据处理层（compute）
+> English | [简体中文](./README.zh-CN.md)
 
-按化学组成预测晶体结构，并以 HTTP 接口提供给数据管理层调用（Python + FastAPI）。
+# Data processing layer (compute)
 
-## 对外接口
+Predicts crystal structures from chemical composition and exposes them over HTTP for the data management layer to call (Python + FastAPI).
 
-| 方法 | 路径 | 用途 |
+## Public API
+
+| Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/health` | 健康检查 |
-| POST | `/predict` | 按化学式预测晶体结构 |
+| GET | `/health` | Health check |
+| POST | `/predict` | Predict a crystal structure from a chemical formula |
 
-实现见 [app/api/README.md](./app/api/README.md)。应答统一为 `{ service, status, code, params? }`：
-成功时另有 `prediction`；出错时只给语言无关的 `code` 与 `params`，文案由前端翻译（见根 README「多语言」）。
+Implementation: [app/api/README.md](./app/api/README.md). Responses use the envelope `{ service, status, code, params? }`:
+success also carries `prediction`; errors carry only language-neutral `code` and `params`, and the frontend translates the copy (see the root README "Languages").
 
-### 预测请求与应答
+### Prediction request and response
 
-请求只需一个化学式，例如 `NaCl`、`CaF2`、`C`、`Cu`（也接受 `Ca(OH)2` 这类带括号的写法）：
+The request needs only a formula, for example `NaCl`, `CaF2`, `C`, `Cu` (bracketed forms such as `Ca(OH)2` are also accepted):
 
 ```text
 POST /predict
 { "formula": "NaCl" }
 ```
 
-应答（节选）：
+Response (excerpt):
 
 ```json
 {
@@ -43,66 +45,63 @@ POST /predict
 }
 ```
 
-- `cell` 是晶胞参数（棱长 Å、夹角 °），`atoms` 是原子与分数坐标，前端可直接拿去画图。
-- `rule` 说明“为什么给出这个结构”，`caveats` 说明结果的局限；两者都只含 code 与数值，
-  前端按 code 翻成一句话（文案见 `frontend/src/locales/`）。
+- `cell` holds the unit-cell parameters (edge lengths in Å, angles in °); `atoms` holds atoms and fractional coordinates, ready for the frontend to draw.
+- `rule` explains "why this structure", and `caveats` lists the limits of the result; both contain only codes and numbers, and the frontend turns each code into a sentence (copy lives in `frontend/src/locales/`).
 
-## 日志追踪
+## Log tracing
 
-每个请求记录一行带编号的日志：`request_id=… method=… path=… status=… duration_ms=…`；
-`/predict` 成功时另记 `formula`、`family`、`prototype`，异常堆栈也带同一个编号。
+Each request logs one line with an ID: `request_id=… method=… path=… status=… duration_ms=…`;
+a successful `/predict` also logs `formula`, `family`, and `prototype`, and exception stack traces carry the same ID.
 
-- 编号优先沿用数据管理层传来的 `X-Request-ID`；没有或格式不合法时生成 `compute-…` 并写回响应头。
-- 中间件在 `app/api/request_context.py`，日志格式与 `request_id` 过滤器在 `app/logging_setup.py`。
-- 只记录方法、路径、状态码、耗时与预测摘要；不记录请求头里的 Cookie 等敏感信息。
+- The ID reuses the data management layer's `X-Request-ID` when present; when missing or invalid, a `compute-…` ID is generated and written back to the response header.
+- Middleware lives in `app/api/request_context.py`; the log format and the `request_id` filter live in `app/logging_setup.py`.
+- Only method, path, status, duration, and prediction summary are logged; sensitive information such as cookies is never logged.
 
-## 算法思路
+## Algorithm
 
-先按组成判断晶体类型，再套课本规则（代码见 `app/domain/prediction.py`）：
+It first classifies the crystal type from the composition, then applies textbook rules (code in `app/domain/prediction.py`):
 
-| 类型 | 判据 | 结构型 |
+| Type | Criterion | Structure type |
 | --- | --- | --- |
-| 离子晶体 | 一种金属阳离子 + 一种阴离子，且电荷守恒 | 1:1 用 Pauling 半径比规则；1:2 / 2:1 用萤石型 / 反萤石型 |
-| 共价晶体 | C / Si / Ge 单质；两种非金属 1:1（如 SiC） | 金刚石型；SiC 用闪锌矿型 |
-| 金属晶体 | 只含一种金属元素 | 面心立方 / 体心立方 / 六方最密堆积（查实验数据表） |
+| Ionic crystal | One metal cation + one anion, with charge balance | 1:1 uses the Pauling radius ratio (ZnO / ZnS use the measured wurtzite cell); 1:2 / 2:1 use fluorite / antifluorite (MgF2 / TiO2 use the measured rutile cell) |
+| Covalent crystal | C / Si / Ge element; two nonmetals in 1:1 (e.g. SiC) | Diamond type; SiC uses zinc blende |
+| Metallic crystal | Only one metal element | Face-centered cubic / body-centered cubic / hexagonal close-packed (from an experimental table) |
 
-半径比规则的分界（无量纲）：小于 0.225 需 3 配位、0.225~0.414 为 4 配位、0.414~0.732 为 6 配位、
-大于 0.732 为 8 配位。晶胞边长由硬球相切模型算出，例如 NaCl 沿棱相切 a = 2(r₊+r₋) = 5.66 Å（课本 5.64 Å）。
+Textbook compounds with measured cells use experimental data: ZnO / ZnS are wurtzite, MgF2 / TiO2 are rutile, and the 1:1 compounds in `KNOWN_IONIC_STRUCTURES` override the radius-ratio rule.
 
-元素数据、结构原型数据与这些判据阈值都集中在 `app/constants/`；`app/domain/` 只放类型与规则。
+Radius-ratio boundaries (dimensionless): below 0.225 needs 3-coordination; 0.225–0.414 is 4-coordination; 0.414–0.732 is 6-coordination; above 0.732 is 8-coordination. Unit-cell edges come from the hard-sphere contact model, e.g. NaCl touches along the edge with a = 2(r₊+r₋) = 5.66 Å (textbook: 5.64 Å).
 
-本阶段只用标准库 `math` 完成这些计算；NumPy 留到需要批量坐标或矩阵运算时再引入，避免为用而用。
+Element data, structure prototype data, and these thresholds all live in `app/constants/`; `app/domain/` contains only types and rules.
 
-## 已知限制
+This stage uses only the standard library `math`; NumPy will be introduced when batch coordinates or matrix operations are actually needed, not just for the sake of using it.
 
-- **半径比只是经验规律**：比值贴近分界时两种配位数都可能，结果用 `caveat_near_boundary` 标出。
-  KCl 的比值约 0.76，规则判成 8 配位，实测却是 NaCl 型；因此课本经典化合物直接采用实验数据
-  （`app/constants/structures.py` 的 `KNOWN_IONIC_STRUCTURES`），并用 `rule_experimental_override` 说明差异。
-- **金属的堆积方式不能只由成分推导**（同种金属在不同温度下结构可能不同），结构型取自实验数据，
-  界面必须注明（`caveat_metal_structure_experimental`）。
-- **六方纤锌矿型暂不覆盖**：ZnO 会被规则判成 NaCl 型，属已知偏差。
-- **1:2 / 2:1 的结构型按离子个数比判定**（萤石型 / 反萤石型，如 CaF₂、Na₂O）；半径比偏离 8 配位区间时
-  （如 MgF₂ 实际是金红石型）结果会带 `caveat_stoichiometry_outside_band` 附注，提示以实验为准。
-- 只覆盖上面三种晶体类型；多元素（如 CaCO₃）、2:3 计量（如 Al₂O₃）、3 配位结构会返回
-  `composition_not_supported` / `radius_ratio_too_small`，不会硬给一个结果。
-- 计算是纯算术、毫秒级完成，因此不需要进度条与取消入口。
+## Known limitations
 
-## 目录
+- **The radius ratio is only an empirical rule**: when the ratio is close to a boundary, either coordination number may occur; such results are marked with `caveat_near_boundary`.
+  KCl has a ratio of about 0.76, so the rule predicts 8-coordination, but the measured structure is NaCl type. Classic textbook compounds therefore use experimental data (`KNOWN_IONIC_STRUCTURES` in `app/constants/structures.py`) and explain the difference with `rule_experimental_override`, `rule_wurtzite_experimental`, or `rule_rutile_experimental`.
+- **Metal packing cannot be derived from composition alone** (the same metal may have different structures at different temperatures); structure types come from experimental data, and the UI must say so (`caveat_metal_structure_experimental`).
+- **Wurtzite is covered for ZnO / ZnS with measured cells**: both use the hexagonal wurtzite type. ZnS also has a cubic zinc blende form, so its result carries `caveat_polymorph`.
+- **1:2 / 2:1 structure types are chosen by ion count ratio** (fluorite / antifluorite, e.g. CaF₂, Na₂O); MgF₂ and TiO₂ are measured rutile types and use their measured cells. Other 1:2 pairs still use fluorite, and when the radius ratio is outside the 8-coordination band the result carries `caveat_stoichiometry_outside_band` and tells students to trust experiment.
+- Only the three crystal types above are covered; multi-element formulas (e.g. CaCO₃), 2:3 stoichiometry (e.g. Al₂O₃), and 3-coordination structures return
+  `composition_not_supported` / `radius_ratio_too_small` instead of guessing a result.
+- The computation is pure arithmetic and finishes in milliseconds, so no progress bar or cancel control is needed.
 
-| 路径 | 作用 |
+## Directory
+
+| Path | Purpose |
 | --- | --- |
-| `app/` | 服务代码，见 [app/README.md](./app/README.md) |
-| `tests/` | 单元测试（课本经典例子），见 [tests/README.md](./tests/README.md) |
+| `app/` | Service code, see [app/README.md](./app/README.md) |
+| `tests/` | Unit tests (classic textbook examples), see [tests/README.md](./tests/README.md) |
 
-## 如何运行
+## How to run
 
-依赖用 [uv](https://docs.astral.sh/uv/) 管理（版本锁在 `uv.lock`，首次运行自动建好 `.venv`）。
+Dependencies are managed with [uv](https://docs.astral.sh/uv/) (versions are locked in `uv.lock`; the first run creates `.venv` automatically).
 
 ```powershell
-uv run python -m app.main   # 服务：默认 127.0.0.1:8001
-uv run pytest               # 单元测试
-uv run pytest --cov=app --cov-report=term-missing   # 单元测试 + 覆盖率
+uv run python -m app.main   # service: default 127.0.0.1:8001
+uv run pytest               # unit tests
+uv run pytest --cov=app --cov-report=term-missing   # unit tests + coverage
 ```
 
-服务启动后：健康检查 <http://127.0.0.1:8001/health>，接口文档 <http://127.0.0.1:8001/docs>。
-要改监听地址或端口，复制 `.env.example` 为 `.env` 再编辑。
+Once the service is running: health check <http://127.0.0.1:8001/health>, API docs <http://127.0.0.1:8001/docs>.
+To change the listen address or port, copy `.env.example` to `.env` and edit it.

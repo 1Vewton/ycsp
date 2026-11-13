@@ -1,37 +1,40 @@
-# 前端 · 源码（frontend/src）
+> English | [简体中文](./README.zh-CN.md)
 
-会被 Vite 编译的前端源码，用 `npm run dev` 启动（见上级 [frontend/README.md](../README.md)）。
+# Frontend · Source (frontend/src)
 
-| 文件 | 作用 |
+Frontend source compiled by Vite; start it with `npm run dev` (see the parent [frontend/README.md](../README.md)).
+
+| File | Purpose |
 | --- | --- |
-| `main.ts` | 入口：挂载 Vue 应用，装上路由与全局样式 |
-| `App.vue` | 应用外壳：顶栏（标题 / 导航 / 登录状态 / 语言切换）+ 路由出口 |
-| `router.ts` | 路由表：首页、预测页、结果页、登录页（hash 模式） |
-| `session.ts` | 全站登录状态：当前账号、恢复 / 登录 / 注册 / 退出，供顶栏与登录页共用 |
-| `styles.css` | 全站共用样式变量与基础类（页面容器、按钮、卡片、状态提示） |
-| `formulaValidation.ts` | 化学式写法校验（纯函数）：字符、括号、下标；元素与电荷留给数据处理层 |
-| `structureCif.ts` | 把“晶胞参数 + 分数坐标”拼成 3Dmol 能读的最小 CIF（P1） |
-| `structureExplanation.ts` | 结果解释用的纯函数：晶胞形状判断、棱长与夹角格式化 |
-| `3dmol-es6.d.ts` | 声明 3Dmol 的 ES 模块构建，复用包自带类型 |
-| `api/` | 数据管理层接口封装（任务、账号、请求编号与统一错误），见 [api/README.md](./api/README.md) |
-| `components/` | 页面共用组件，见 [components/README.md](./components/README.md) |
-| `views/` | 页面组件，见 [views/README.md](./views/README.md) |
-| `locales/` | 语言包与取词入口 `t()`，见 [locales/README.md](./locales/README.md) |
+| `main.ts` | Entry: mount the Vue app, install routing and global styles |
+| `App.vue` | Application shell: header (title / navigation / sign-in state / language switch) + router outlet |
+| `router.ts` | Route table: home, predict, result, login, reset password, account settings, prediction history (hash mode) |
+| `session.ts` | Site-wide sign-in state: current account, restore / sign in / register / sign out, password change, security question update and password reset, shared by the header and account pages |
+| `styles.css` | Shared style variables and base classes (page container, buttons, cards, status messages) |
+| `formulaValidation.ts` | Formula syntax validation (pure functions): characters, brackets, subscripts; elements and charges are left to the data processing layer |
+| `structureScene.ts` | Pure geometry for the 3D view: unit-cell vectors, fractional → Cartesian coordinates, bonds, cell edges, camera radius |
+| `structureRenderer.ts` | Three.js renderer (lazy-loaded): atoms, bonds, cell wireframe, lighting, reset view, resource disposal |
+| `structureExplanation.ts` | Pure functions for result explanations: unit-cell shape detection, edge length and angle formatting |
+| `api/` | Data management API wrappers (tasks, accounts, request IDs, unified errors), see [api/README.md](./api/README.md) |
+| `components/` | Shared page components, see [components/README.md](./components/README.md) |
+| `views/` | Page components, see [views/README.md](./views/README.md) |
+| `locales/` | Language packs and the `t()` lookup entry point, see [locales/README.md](./locales/README.md) |
 
-## 图标
+## Icons
 
-界面图标用 Font Awesome（`@fortawesome/vue-fontawesome` + `@fortawesome/free-solid-svg-icons`）。
+The interface uses Font Awesome (`@fortawesome/vue-fontawesome` + `@fortawesome/free-solid-svg-icons`).
 
-- 在用到图标的组件里按“单个图标”引入（`import { faXxx } from '@fortawesome/free-solid-svg-icons/faXxx'`），只有实际用到的图标会进打包产物。
-- 图标只做装饰：旁边始终保留文字，并写 `aria-hidden="true"`，屏幕阅读器不会念出多余的图形。
-- 图标颜色跟随文字（`currentColor`），按钮与链接用 `gap` 留出图标与文字的距离，不额外写 margin。
+- Import icons one by one in the component that uses them (`import { faXxx } from '@fortawesome/free-solid-svg-icons/faXxx'`); only icons actually used end up in the bundle.
+- Icons are decorative only: text always remains beside them, and they carry `aria-hidden="true"` so screen readers do not announce extra graphics.
+- Icon color follows the text (`currentColor`); buttons and links use `gap` for spacing instead of extra margins.
 
-## 三维结构
+## 3D structures
 
-结构结果用 [3Dmol.js](https://3dmol.org/) 渲染（BSD-3-Clause，版权声明见 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)）。
+Structure results are rendered with [Three.js](https://threejs.org/) (MIT; copyright notice in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)).
 
-- 只在结果页成功、且确实要画图时才 `import('3dmol/build/3Dmol.es6-min.js')`：它被单独打成约 530 kB 的 chunk，首页与预测页不会下载。
-- 用 ES 模块构建而不是 npm 入口的 UMD 构建，命名导出更稳定；类型通过 `3dmol-es6.d.ts` 转接。
-- 渲染需要 WebGL；不支持时显示可翻译的提示，文字版结果（3.5）仍然可读。
-- 3Dmol 内部使用 `eval`；如果以后部署时启用严格 CSP，需要允许 `unsafe-eval` 或换用 Three.js。
+- `structureScene.ts` is a pure module: it turns cell parameters and fractional coordinates into atom positions, bonds, cell edges, and the camera radius. It is covered by `tests/structureScene.test.ts`.
+- `StructureViewer.vue` dynamically imports `structureRenderer.ts` only when the result page succeeds; Three.js is split into its own ~560 kB chunk, so the home and predict pages never download it.
+- Bonds are the first coordination shell: pairs within 1.2× the shortest distance; ionic crystals only connect different ions, and metals have no bonds.
+- Rendering needs WebGL; when unavailable, a translatable hint is shown and the text result remains readable.
+- The renderer uses no `eval` / `Function` constructor, so a strict CSP does not need `unsafe-eval`; `npm run check-csp` verifies the built bundle after `npm run build`.
 

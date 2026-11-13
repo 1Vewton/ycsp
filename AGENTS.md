@@ -20,12 +20,16 @@
 
 | 位置 | 只写 |
 | --- | --- |
-| 根 `README.md` | 项目定位、整体架构、安装与启动、目录导航 |
-| 各模块 `README.md` | 该模块职责与怎么用；够用即可，不必套固定小节 |
+| 根 `README.md` / `README.zh-CN.md` | 项目定位、整体架构、安装与启动、目录导航 |
+| 各模块 `README.md` / `README.zh-CN.md` | 该模块职责与怎么用；够用即可，不必套固定小节 |
 | 代码注释 | 该文件/函数/参数“为什么这样写” |
 
-- 新建目录必须同时建该目录的 `README.md`，并在上级 README 的导航中登记；`.github/` 目录免于本要求（`README.md` 会被 GitHub 当成目录说明渲染，文档按 `README-workflow.md` 命名）。
-- 子模块的文档只写在子模块自己的 `README.md` 里；父模块 `README.md` 对子模块**只登记一行导航（带链接）**，不要复制它的职责、输入输出、示例等内容——避免重复，也避免浪费 token。
+- **README 默认英文**：每个目录的 `README.md` 写英文，同目录的 `README.zh-CN.md` 写对应的简体中文；两份内容一一对应，改一份必须同步另一份。
+- **新建目录必须同时建两份 README**：`README.md`（英文）与 `README.zh-CN.md`（中文），并在上级 README 的导航中登记（链接指向默认的 `README.md`）。
+- 每份 README 顶部放语言切换链接：英文版指向同目录的 `README.zh-CN.md`，中文版指回 `README.md`。
+- `.github/` 目录的 CI 文档按 `README-workflow.md`（英文）+ `README-workflow.zh-CN.md`（中文）命名（`README.md` 会被 GitHub 当成目录说明渲染，不能占用）。
+- 本文件（`AGENTS.md`）与 `TASKS.md` 是开发协作文档，保持中文，不属于 README 双语规则。
+- 子模块的文档只写在子模块自己的 `README.md` / `README.zh-CN.md` 里；父模块 `README.md` 对子模块**只登记一行导航（带链接）**，不要复制它的职责、输入输出、示例等内容——避免重复，也避免浪费 token。
 - 只写“为什么”和“怎么用”，不复述代码已经表达清楚的内容。
 - 改代码导致行为变化时，同一次改动内更新对应 README。
 

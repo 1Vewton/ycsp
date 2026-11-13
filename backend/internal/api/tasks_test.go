@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -16,8 +15,11 @@ import (
 	"github.com/1Vewton/ycsp/backend/internal/api"
 	"github.com/1Vewton/ycsp/backend/internal/codes"
 	"github.com/1Vewton/ycsp/backend/internal/compute"
+	"github.com/1Vewton/ycsp/backend/internal/session"
 	"github.com/1Vewton/ycsp/backend/internal/store"
 	"github.com/1Vewton/ycsp/backend/internal/tasks"
+	"github.com/1Vewton/ycsp/backend/internal/testutil"
+	"github.com/1Vewton/ycsp/backend/internal/users"
 )
 
 const ionicPredictionBody = `{
@@ -70,22 +72,7 @@ func newTaskRouterWithDatabase(
 ) (http.Handler, *gorm.DB) {
 	t.Helper()
 
-	database, err := store.Open(store.Settings{
-		Driver: store.DriverSQLite,
-		DSN:    filepath.Join(t.TempDir(), "api-tasks.db"),
-	})
-	if err != nil {
-		t.Fatalf("open database: %v", err)
-	}
-	if err := store.Migrate(database); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	t.Cleanup(func() {
-		sqlDatabase, err := database.DB()
-		if err == nil {
-			_ = sqlDatabase.Close()
-		}
-	})
+	database := testutil.OpenDatabase(t)
 
 	service := tasks.New(database, predictor)
 	if startWorkers {
@@ -345,5 +332,111 @@ func TestCreateTaskStoresRequestID(t *testing.T) {
 	}
 	if stored.TraceID != "web-test-789" {
 		t.Errorf("stored trace_id = %q, want web-test-789", stored.TraceID)
+	}
+}
+
+func newAuthedTaskRouter(t *testing.T) (http.Handler, *tasks.Service) {
+	t.Helper()
+
+	database := testutil.OpenDatabase(t)
+	service := tasks.New(database, successPredictor())
+	workerContext, cancelWorkers := context.WithCancel(context.Background())
+	service.Start(workerContext)
+	t.Cleanup(func() {
+		cancelWorkers()
+		service.Stop()
+	})
+
+	router := api.NewRouter(api.Options{
+		ComputeBaseURL: "http://127.0.0.1:1",
+		Tasks:          service,
+		Auth: api.AuthOptions{
+			Users:           users.New(database),
+			Sessions:        session.NewMemoryStore(),
+			SessionLifetime: time.Hour,
+		},
+	})
+	return router, service
+}
+
+func TestTaskHistoryRequiresSignIn(t *testing.T) {
+	router, _ := newAuthedTaskRouter(t)
+
+	recorder, payload := performAuthRequest(
+		t, router, http.MethodGet, "/api/users/me/tasks", "", nil,
+	)
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusUnauthorized)
+	}
+	if payload["code"] != codes.NotSignedIn {
+		t.Errorf("code = %v, want %q", payload["code"], codes.NotSignedIn)
+	}
+}
+
+func TestTaskHistoryListsOnlyTheSignedInUsersTasks(t *testing.T) {
+	router, _ := newAuthedTaskRouter(t)
+	cookie := registerUser(t, router, "小明")
+
+	createRecorder, createPayload := performAuthRequest(
+		t, router, http.MethodPost, "/api/tasks", `{"formula":"NaCl"}`, cookie,
+	)
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, body = %s", createRecorder.Code, createRecorder.Body.String())
+	}
+	taskID := uint(createPayload["task"].(map[string]any)["id"].(float64))
+
+	deadline := time.Now().Add(3 * time.Second)
+	status := ""
+	for time.Now().Before(deadline) {
+		_, payload := performAuthRequest(
+			t, router, http.MethodGet, fmt.Sprintf("/api/tasks/%d", taskID), "", cookie,
+		)
+		status, _ = payload["task"].(map[string]any)["status"].(string)
+		if status == store.TaskStatusSucceeded {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if status != store.TaskStatusSucceeded {
+		t.Fatalf("task did not succeed in time, last status = %q", status)
+	}
+
+	historyRecorder, historyPayload := performAuthRequest(
+		t, router, http.MethodGet, "/api/users/me/tasks", "", cookie,
+	)
+	if historyRecorder.Code != http.StatusOK {
+		t.Fatalf("history status = %d, body = %s", historyRecorder.Code, historyRecorder.Body.String())
+	}
+	if historyPayload["code"] != codes.TaskHistory {
+		t.Errorf("code = %v, want %q", historyPayload["code"], codes.TaskHistory)
+	}
+	if historyPayload["total"] != float64(1) {
+		t.Errorf("total = %v, want 1", historyPayload["total"])
+	}
+	items, ok := historyPayload["tasks"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("tasks = %v, want one item", historyPayload["tasks"])
+	}
+	item := items[0].(map[string]any)
+	if item["formula"] != "NaCl" || item["status"] != store.TaskStatusSucceeded {
+		t.Errorf("history item = %v", item)
+	}
+	result, ok := item["result"].(map[string]any)
+	if !ok || result["prototype"] != "rock_salt" {
+		t.Errorf("history result = %v, want rock_salt", item["result"])
+	}
+
+	// 匿名任务没有归属，不应出现在个人历史里。
+	anonymousRecorder, _ := performAuthRequest(
+		t, router, http.MethodPost, "/api/tasks", `{"formula":"KCl"}`, nil,
+	)
+	if anonymousRecorder.Code != http.StatusCreated {
+		t.Fatalf("anonymous create status = %d", anonymousRecorder.Code)
+	}
+	_, afterAnonymous := performAuthRequest(
+		t, router, http.MethodGet, "/api/users/me/tasks", "", cookie,
+	)
+	if afterAnonymous["total"] != float64(1) {
+		t.Errorf("total after anonymous task = %v, want 1", afterAnonymous["total"])
 	}
 }

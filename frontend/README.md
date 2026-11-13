@@ -1,85 +1,95 @@
-# 前端（frontend）
+> English | [简体中文](./README.zh-CN.md)
 
-学生看到并操作的网页（TypeScript + Vue 3 + Vite），只与数据管理层通信。
+# Frontend (frontend)
 
-## 职责
+The web interface students see and use (TypeScript + Vue 3 + Vite). It talks only to the data management layer.
 
-- 学生界面：输入化学式、看进度、看三维结构与解释、登录 / 注册。
-- 只与数据管理层通信，不直接连数据处理层；计算与数据都留在后端。
-- 不复制后端的元素与电荷数据：写法校验只做前端能独立判断的部分（见 `src/formulaValidation.ts`）。
-- 面向学生的文字全部来自语言包，组件里不写死中文或英文。
+## Responsibilities
 
-## 常用命令
+- Student interface: enter a chemical formula, follow progress, inspect the 3D structure and its explanation, sign in / register.
+- Talks only to the data management layer, never directly to the data processing layer; computation and data stay on the backend.
+- Does not duplicate the backend's element and charge data: validation covers only what the frontend can decide on its own (see `src/formulaValidation.ts`).
+- All student-facing text comes from language packs; no Chinese or English is hard-coded in components.
 
-开发端口与后端地址都有默认值；要改的话，复制 `frontend/.env.example` 为 `frontend/.env`：
+## Common commands
+
+The dev port and backend address have defaults. To change them, copy `frontend/.env.example` to `frontend/.env`:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-| 命令 | 作用 |
+| Command | Purpose |
 | --- | --- |
-| `npm install` | 首次安装依赖 |
-| `npm run dev` | 开发服务器（<http://127.0.0.1:5173>） |
-| `npm run build` | 打包到 `dist/` |
-| `npm run type-check` | TypeScript 类型检查 |
-| `npm run check-codes` | 检查 backend / compute 的每个 code 都有中英文案（CI 也会跑） |
-| `npm run test` | 跑一次自动化测试（纯函数 / 接口 / 组件，CI 也会跑） |
-| `npm run test:watch` | 监听改动，持续跑测试 |
+| `npm install` | Install dependencies for the first time |
+| `npm run dev` | Dev server (<http://127.0.0.1:5173>) |
+| `npm run build` | Bundle into `dist/` |
+| `npm run type-check` | TypeScript type checking |
+| `npm run check-codes` | Check that every backend / compute code has Chinese and English copy (CI also runs this) |
+| `npm run check-csp` | After `npm run build`, check the production bundle for `eval` / `Function` constructors (CI also runs this) |
+| `npm run test` | Run the automated tests once (pure functions / API / components; CI also runs this) |
+| `npm run test:watch` | Watch changes and keep running tests |
 
-开发时 Vite 把 `/api` 代理到 `VITE_BACKEND_BASE_URL`（默认 `http://127.0.0.1:8000`，可在 `frontend/.env` 覆盖），所以用前请先启动 compute 与 backend。
+In development, Vite proxies `/api` to `VITE_BACKEND_BASE_URL` (default `http://127.0.0.1:8000`, override it in `frontend/.env`), so start compute and backend first.
 
-自动化测试在 `tests/`，用 Vitest + jsdom，不需要启动后端，见 [tests/README.md](./tests/README.md)。
+Automated tests live in `tests/` and use Vitest + jsdom; they do not need a running backend. See [tests/README.md](./tests/README.md).
 
-错误码文案检查脚本在 `scripts/`，见 [scripts/README.md](./scripts/README.md)。
+The error-code copy check script lives in `scripts/`; see [scripts/README.md](./scripts/README.md).
 
-## 页面结构
+## Pages
 
-四个页面用 vue-router 的 hash 模式（地址形如 `/#/predict`）：直接打开或刷新任何页面都不会 404，
-部署时也不用给服务器加“回退到 index.html”的规则。地址登记在 `src/router.ts`。
+The seven pages use vue-router's hash mode (addresses look like `/#/predict`): opening or refreshing any page never returns 404, and deployment needs no "fall back to index.html" rule. Routes are registered in `src/router.ts`.
 
-| 路由 | 页面 | 内容 |
+| Route | View | Content |
 | --- | --- | --- |
-| `/#/` | `HomeView` | 平台能做什么、三步上手、支持范围；后台服务连通检查 |
-| `/#/predict` | `PredictView` | 化学式输入与即时写法反馈、示例快捷选择、开始预测 |
-| `/#/result/:taskId` | `ResultView` | 轮询进度、取消排队任务、失败原因与耗时、三维结构与学生能懂的解释 |
-| `/#/login` | `LoginView` | 登录 / 注册共用表单；已登录时显示账号与退出 |
+| `/#/` | `HomeView` | What the platform does, three steps to start, supported range; background service connectivity check |
+| `/#/predict` | `PredictView` | Formula input with instant validation feedback, example shortcuts, start prediction |
+| `/#/result/:taskId` | `ResultView` | Poll progress, cancel a queued task, failure reason and duration, 3D structure and a student-friendly explanation |
+| `/#/login` | `LoginView` | Shared login / registration form, optional security question, forgot-password link; when signed in, shows the account and sign-out |
+| `/#/reset-password` | `ResetPasswordView` | Look up the security question by nickname, answer it and set a new password; signs in on success |
+| `/#/account` | `AccountView` | Change password, set or update the security question |
+| `/#/history` | `HistoryView` | The signed-in account's prediction history, newest first, with a link to each result and "load more" paging |
 
-每个页面现在做什么、下一步要接什么，见 [src/views/README.md](./src/views/README.md)。
-登录不是预测的前提；不登录也能创建任务，只是任务不记归属。
+Each page's current job and next integration step: [src/views/README.md](./src/views/README.md).
+Login is not required for prediction; tasks can be created without signing in, they simply have no owner and do not appear in history.
 
-## 与后端接口约定
+## API conventions
 
-| 约定 | 前端怎么做 |
+| Convention | What the frontend does |
 | --- | --- |
-| 唯一入口 | 只调用数据管理层的 `/api/...`；开发时由 Vite 代理，生产时走同源反向代理（见 [../backend/README.md](../backend/README.md)） |
-| 统一信封 | 应答是 `{ service, status, code, params? }`，成功时另有 `task` / `result` / `user`；`status` 不是 `ok` 就按失败处理 |
-| 错误文案 | 前端只拿语言无关的 `code` + `params`，用 `tCode()` 从 `src/locales/` 取当前语言的句子；后端不返回中文或英文 |
-| 会话 | 登录 Cookie 由后端以 `HttpOnly` 下发，前端不读也不存；同源请求由浏览器自动携带 |
-| 任务流程 | `POST /api/tasks` 立即返回 `pending` → 每秒轮询 `GET /api/tasks/:id` → 成功后取 `/result`；只有排队中的任务可取消 |
-| 追踪 | 每次请求带 `X-Request-ID`，失败时 `ApiError.requestId` 保留同一个编号 |
-| 内容安全 | 不把后端技术细节直接显示给学生；未知 code 显示 `unknown_code`，细节只进控制台 |
+| Single entry point | Calls only `/api/...` on the data management layer; Vite proxies it in development and a same-origin reverse proxy handles it in production (see [../backend/README.md](../backend/README.md)) |
+| Envelope | Responses are `{ service, status, code, params? }`, with `task` / `result` / `user` on success; anything other than `status: ok` is treated as a failure |
+| Error copy | The frontend receives only language-neutral `code` + `params` and uses `tCode()` to read the current language from `src/locales/`; the backend never returns Chinese or English |
+| Session | The backend sets the login cookie as `HttpOnly`; the frontend neither reads nor stores it; same-origin requests carry it automatically |
+| Task flow | `POST /api/tasks` returns `pending` immediately → poll `GET /api/tasks/:id` every second → fetch `/result` on success; only queued tasks can be cancelled |
+| Tracing | Every request carries `X-Request-ID`; on failure `ApiError.requestId` keeps the same value |
+| Content safety | Backend technical details are never shown to students; unknown codes display `unknown_code`, and details go only to the console |
 
-具体接口与字段见 [../backend/README.md](../backend/README.md)《对外接口》；前端封装见 [src/api/README.md](./src/api/README.md)。
+See [../backend/README.md](../backend/README.md) "Public API" for endpoints and fields; see [src/api/README.md](./src/api/README.md) for the frontend wrapper.
 
-## 日志追踪
+## Log tracing
 
-每次 `/api` 请求都会带 `X-Request-ID`（`web-…`），控制台以
-`[ycsp] request start / done / failed request_id=…` 记录；失败时 `ApiError.requestId` 保留同一个编号。
-按这个编号可以查后端与数据处理层的日志，详见 [src/api/README.md](./src/api/README.md)
-与 [../backend/README.md](../backend/README.md)《日志追踪》。
+Every `/api` request carries `X-Request-ID` (`web-…`). The console logs
+`[ycsp] request start / done / failed request_id=…`; on failure `ApiError.requestId` keeps the same value.
+Search that ID in the backend and data processing logs. Details are in [src/api/README.md](./src/api/README.md)
+and [../backend/README.md](../backend/README.md) "Log tracing".
 
-## 已知限制
+## Strict CSP
 
-- **支持范围有限**：只覆盖离子晶体（1:1、1:2、2:1）、金属单质与 C / Si / Ge / SiC 等共价晶体；多元素、2:3 计量、3 配位等会明确提示不支持（详见 [../compute/README.md](../compute/README.md)《已知限制》）。
-- **三维视图需要 WebGL**：不支持 WebGL 的设备只显示文字解释；结构图是单个晶胞（P1），不做对称扩展或周期性重复。
-- **3Dmol 使用 `eval`**：部署时若启用严格 CSP，需要允许 `unsafe-eval` 或换用其他渲染库（见 [src/README.md](./src/README.md)）。
-- **账号功能有限**：目前只有注册、登录、退出；没有改密码 / 重置密码，也没有“我的预测记录”页面，离开结果页后只能靠地址里的任务编号回来。
-- **必须与数据管理层同源**：前端只请求相对路径 `/api`；如果静态站点与后端分域部署，需要反向代理或补 CORS，当前未做跨域支持。
-- **只支持中 / 英两种语言**：其他语言会回退英文，不保证完整翻译。
-- **不能离线使用**：预测、进度与结果都依赖后端；前端只负责展示。
-- **前端测试不连真实后端**：`npm run test` 用 mock 的 `fetch` 覆盖纯函数、接口与组件；真实三层链路的回归仍靠手工或后续 E2E。
+The 3D view uses [Three.js](https://threejs.org/) and does not need `unsafe-eval`.
+After `npm run build`, `npm run check-csp` scans `dist/assets/*.js` for `eval` and
+`Function` constructors; CI runs it after the build.
 
-第三方图标与三维渲染库的许可见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
+## Known limitations
 
-界面文案按语言存放在 `src/locales/`，组件里只写 tag 并通过 `t()` 取词（见 [src/README.md](./src/README.md)）；默认中文，可切到英文，缺翻译时回退英文。
+- **Narrow support**: ionic crystals (1:1, 1:2, 2:1; including wurtzite ZnO / ZnS and rutile MgF2 / TiO2), elemental metals, and covalent crystals such as C / Si / Ge / SiC; multi-element formulas, 2:3 stoichiometry, and 3-coordination are explicitly reported as unsupported (see [../compute/README.md](../compute/README.md) "Known limitations").
+- **The 3D view requires WebGL2**: devices without WebGL2 only show the text explanation; the structure image is a single unit cell, with no symmetry expansion or periodic repetition.
+- **Account features**: registration, sign in/out, password change, security-question reset and prediction history. Reset needs a security question, which must be set at registration or in account settings; anonymous predictions are not saved to history; changing or resetting a password does not invalidate sessions on other devices yet.
+- **Must be same-origin with the data management layer**: the frontend requests only the relative path `/api`; if the static site and backend are deployed on different domains, a reverse proxy or CORS is needed, and CORS is not currently implemented.
+- **Only Chinese / English**: other languages fall back to English and are not guaranteed to be fully translated.
+- **Cannot work offline**: prediction, progress, and results all depend on the backend; the frontend only displays them.
+- **Frontend tests do not use a real backend**: `npm run test` mocks `fetch` to cover pure functions, the API layer, and components; real three-layer regression still relies on manual checks or future E2E.
+
+Third-party icon and 3D rendering licenses: [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
+
+Interface copy lives by language in `src/locales/`; components use only tags and call `t()` (see [src/README.md](./src/README.md)). Chinese is the default and English is switchable; missing translations fall back to English.

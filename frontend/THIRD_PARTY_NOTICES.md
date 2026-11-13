@@ -2,13 +2,13 @@
 
 本项目前端使用了以下第三方资源；分发构建产物时请保留本文件与各库自带的许可文本。
 
-## 3Dmol.js
+## Three.js
 
 - 用途：结果页的晶体结构三维渲染（按需加载）
-- 版本：见 `package.json` 的 `3dmol`
-- 许可证：BSD-3-Clause
-- 版权：David Koes 与 3Dmol.js 贡献者
-- 主页：<https://3dmol.org/>
+- 版本：见 `package.json` 的 `three`
+- 许可证：MIT
+- 版权：three.js authors
+- 主页：<https://threejs.org/>
 
 ## Font Awesome Free
 

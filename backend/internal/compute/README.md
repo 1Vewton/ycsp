@@ -1,26 +1,29 @@
-# 数据管理层 · 数据处理层客户端（backend/internal/compute）
+> English | [简体中文](./README.zh-CN.md)
 
-调用数据处理层 `POST /predict`，把结果交给任务服务落库。接口契约见
-[`compute/README.md`](../../../compute/README.md)《对外接口》。
+# Data management layer · Data processing client (backend/internal/compute)
 
-| 文件 | 作用 |
+Calls the data processing layer's `POST /predict` and hands the result to the task service for persistence. The contract is documented in
+[`compute/README.md`](../../../compute/README.md) "Public API".
+
+| File | Purpose |
 | --- | --- |
-| `client.go` | 发请求、超时（10 秒）、透传 `X-Request-ID`、解析统一应答 |
-| `types.go` | `Prediction` / `Candidate` / `Cell`；`rule`、`caveats`、`atoms` 保留原始 JSON |
-| `errors.go` | 四类失败 + `Describe`：把客户端错误翻成前端可用的 `code` 与 `params` |
+| `client.go` | Sends requests, configurable timeout (10 s by default), passes `X-Request-ID` through, parses the unified response |
+| `types.go` | `Prediction` / `Candidate` / `Cell`; `rule`, `caveats`, and `atoms` keep their raw JSON |
+| `errors.go` | Failure kinds + `Describe`: turns client errors into frontend-usable `code` and `params` |
 
-## 错误怎么分
+## How errors are classified
 
-| 情况 | 客户端错误 | 落库的 code |
+| Situation | Client error | Stored code |
 | --- | --- | --- |
-| 上游 400 + `{status:error, code}`（如化学式电荷不平） | `PredictionError` | **原样透传**上游 code，前端已有文案 |
-| 连不上 / 超时 | `TransportError` | `compute_unreachable`（参数 `url`） |
-| 读不出应答 | `ProtocolError` | `compute_read_failed` |
-| 状态码不是 200 | `ProtocolError` | `compute_bad_status`（参数 `status_code`） |
-| 应答不是合法 JSON | `ProtocolError` | `compute_invalid_json` |
-| 200 但没有候选结构 | `ProtocolError` | `compute_no_result` |
+| Upstream 400 + `{status:error, code}` (e.g. unbalanced charges) | `PredictionError` | **Pass through** the upstream code; the frontend already has copy |
+| Connection failure | `TransportError` | `compute_unreachable` (param `url`) |
+| Timeout | `TimeoutError` | `compute_timeout` |
+| Cannot read the response | `ProtocolError` | `compute_read_failed` |
+| Status code is not 200 | `ProtocolError` | `compute_bad_status` (param `status_code`) |
+| Response is not valid JSON | `ProtocolError` | `compute_invalid_json` |
+| 200 but no candidate structure | `ProtocolError` | `compute_no_result` |
 
-`rule` / `caveats` / `atoms` 用 `json.RawMessage` 保存：落库与回传时字节不变，
-不需要在后端重新描述一遍结构。
+`rule` / `caveats` / `atoms` are kept as `json.RawMessage`: bytes are unchanged when stored and returned,
+so the backend does not need to describe the structure again.
 
-测试：`go test ./internal/compute/`（用 `httptest` 造假的数据处理层，不需要真的起 Python）。
+Tests: `go test ./internal/compute/` (uses `httptest` to fake the data processing layer; no real Python process needed).

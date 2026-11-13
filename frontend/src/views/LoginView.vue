@@ -30,6 +30,8 @@ const mode = ref<AuthMode>('signIn')
 const displayName = ref('')
 const password = ref('')
 const passwordConfirmation = ref('')
+const securityQuestion = ref('')
+const securityAnswer = ref('')
 const isSubmitting = ref(false)
 const isSigningOut = ref(false)
 const failure = ref<ApiProblem | null>(null)
@@ -55,7 +57,7 @@ const submitIcon = computed(() =>
 )
 
 // 改过输入就把上一次的失败提示收走，别让旧错误留在页面上。
-watch([mode, displayName, password, passwordConfirmation], () => {
+watch([mode, displayName, password, passwordConfirmation, securityQuestion, securityAnswer], () => {
   failure.value = null
 })
 
@@ -67,6 +69,8 @@ function switchMode(nextMode: AuthMode): void {
   mode.value = nextMode
   password.value = ''
   passwordConfirmation.value = ''
+  securityQuestion.value = ''
+  securityAnswer.value = ''
   failure.value = null
 }
 
@@ -81,11 +85,23 @@ async function submitCredentials(): Promise<void> {
     failure.value = { code: 'auth_password_mismatch' }
     return
   }
+  if (
+    mode.value === 'register' &&
+    (securityQuestion.value.trim() === '') !== (securityAnswer.value.trim() === '')
+  ) {
+    failure.value = { code: 'auth_security_incomplete' }
+    return
+  }
 
   isSubmitting.value = true
   try {
     if (mode.value === 'register') {
-      await registerAccount(name, password.value)
+      await registerAccount(
+        name,
+        password.value,
+        securityQuestion.value,
+        securityAnswer.value,
+      )
     } else {
       await signIn(name, password.value)
     }
@@ -141,6 +157,9 @@ function targetPathAfterSuccess(): string {
         <RouterLink class="primary-button" to="/predict">
           <FontAwesomeIcon :icon="faArrowRight" aria-hidden="true" />
           <span>{{ t('auth_continue_button') }}</span>
+        </RouterLink>
+        <RouterLink class="secondary-button" to="/account">
+          <span>{{ t('account_heading') }}</span>
         </RouterLink>
         <button
           type="button"
@@ -214,6 +233,11 @@ function targetPathAfterSuccess(): string {
           <p v-if="mode === 'register'" id="login-password-hint" class="auth-hint">
             {{ t('login_password_policy_hint') }}
           </p>
+          <p v-else class="auth-hint">
+            <RouterLink class="link-button" to="/reset-password">
+              {{ t('login_forgot_password_link') }}
+            </RouterLink>
+          </p>
         </div>
 
         <div v-if="mode === 'register'" class="auth-field">
@@ -228,6 +252,34 @@ function targetPathAfterSuccess(): string {
             autocomplete="new-password"
             :placeholder="t('login_password_confirm_placeholder')"
           />
+        </div>
+
+        <div v-if="mode === 'register'" class="auth-field">
+          <label class="auth-label" for="login-security-question">
+            {{ t('login_security_question_label') }}
+          </label>
+          <input
+            id="login-security-question"
+            v-model="securityQuestion"
+            class="auth-input"
+            type="text"
+            :placeholder="t('login_security_question_placeholder')"
+          />
+        </div>
+
+        <div v-if="mode === 'register'" class="auth-field">
+          <label class="auth-label" for="login-security-answer">
+            {{ t('login_security_answer_label') }}
+          </label>
+          <input
+            id="login-security-answer"
+            v-model="securityAnswer"
+            class="auth-input"
+            type="text"
+            autocomplete="off"
+            :placeholder="t('login_security_answer_placeholder')"
+          />
+          <p class="auth-hint">{{ t('login_security_hint') }}</p>
         </div>
 
         <button type="submit" class="primary-button auth-submit" :disabled="!canSubmit">

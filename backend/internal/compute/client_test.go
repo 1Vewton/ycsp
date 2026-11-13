@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/1Vewton/ycsp/backend/internal/codes"
 	"github.com/1Vewton/ycsp/backend/internal/compute"
@@ -192,6 +193,64 @@ func TestPredictReportsUnreachableLayer(t *testing.T) {
 	}
 	if !strings.HasSuffix(params["url"].(string), "/predict") {
 		t.Errorf("params.url = %v", params["url"])
+	}
+}
+
+func TestPredictReportsTimeout(t *testing.T) {
+	release := make(chan struct{})
+	server := newFakeCompute(t, func(_ http.ResponseWriter, request *http.Request) {
+		// 一直不回话，直到客户端超时；测试结束时由 cleanup 放行 handler。
+		select {
+		case <-request.Context().Done():
+		case <-release:
+		}
+	})
+	t.Cleanup(func() { close(release) })
+
+	client := compute.NewClientWithTimeout(server.URL, 25*time.Millisecond)
+	_, err := client.Predict(context.Background(), "NaCl")
+
+	var timeoutError *compute.TimeoutError
+	if !errors.As(err, &timeoutError) {
+		t.Fatalf("error = %v, want TimeoutError", err)
+	}
+	code, params := compute.Describe(err)
+	if code != codes.ComputeTimeout {
+		t.Errorf("code = %q, want %q", code, codes.ComputeTimeout)
+	}
+	if len(params) != 0 {
+		t.Errorf("params = %v, want none", params)
+	}
+}
+
+func TestPredictReportsBodyTimeout(t *testing.T) {
+	release := make(chan struct{})
+	server := newFakeCompute(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "128")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"`))
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+		<-release
+	})
+	t.Cleanup(func() { close(release) })
+
+	client := compute.NewClientWithTimeout(server.URL, 25*time.Millisecond)
+	_, err := client.Predict(context.Background(), "NaCl")
+
+	var timeoutError *compute.TimeoutError
+	if !errors.As(err, &timeoutError) {
+		t.Fatalf("error = %v, want TimeoutError for a stalled body", err)
+	}
+	if code, _ := compute.Describe(err); code != codes.ComputeTimeout {
+		t.Errorf("code = %q, want %q", code, codes.ComputeTimeout)
+	}
+}
+
+func TestDescribeRecognizesContextDeadline(t *testing.T) {
+	if code, _ := compute.Describe(context.DeadlineExceeded); code != codes.ComputeTimeout {
+		t.Errorf("code = %q, want %q", code, codes.ComputeTimeout)
 	}
 }
 

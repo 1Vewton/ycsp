@@ -9,6 +9,10 @@ const authMocks = vi.hoisted(() => ({
   registerAccount: vi.fn(),
   signIn: vi.fn(),
   signOut: vi.fn(),
+  changePassword: vi.fn(),
+  updateSecurityQuestion: vi.fn(),
+  fetchPasswordResetQuestion: vi.fn(),
+  resetPassword: vi.fn(),
 }))
 
 vi.mock('../src/api/auth', () => authMocks)
@@ -42,6 +46,13 @@ async function mountApp(path = '/predict') {
       { path: '/', name: 'home', component: { template: '<div>home</div>' } },
       { path: '/predict', name: 'predict', component: { template: '<div>predict</div>' } },
       { path: '/login', name: 'login', component: { template: '<div>login</div>' } },
+      { path: '/history', name: 'history', component: { template: '<div>history</div>' } },
+      { path: '/account', name: 'account', component: { template: '<div>account</div>' } },
+      {
+        path: '/reset-password',
+        name: 'reset-password',
+        component: { template: '<div>reset</div>' },
+      },
     ],
   })
   await router.push(path)

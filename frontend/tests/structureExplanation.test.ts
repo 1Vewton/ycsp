@@ -21,6 +21,10 @@ describe('describeCellShape', () => {
     ).toBe('cubic')
   })
 
+  it('底面等长、三个夹角都是 90°、但 c 不同时判为四方', () => {
+    expect(describeCellShape({ ...cubicCell, edge_c_angstrom: 7.2 })).toBe('tetragonal')
+  })
+
   it('底面等长、γ=120° 且 α=β=90° 时判为六方', () => {
     expect(
       describeCellShape({
@@ -32,7 +36,7 @@ describe('describeCellShape', () => {
   })
 
   it('其它情况归为普通晶胞', () => {
-    expect(describeCellShape({ ...cubicCell, edge_c_angstrom: 7.2 })).toBe('general')
+    expect(describeCellShape({ ...cubicCell, edge_b_angstrom: 5.0 })).toBe('general')
     expect(describeCellShape({ ...cubicCell, angle_gamma_degree: 100 })).toBe('general')
   })
 })

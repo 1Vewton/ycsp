@@ -4,10 +4,14 @@
 import { readonly, ref } from 'vue'
 
 import {
+  changePassword as requestChangePassword,
   fetchCurrentUser,
+  fetchPasswordResetQuestion,
   registerAccount as requestRegistration,
+  resetPassword as requestPasswordReset,
   signIn as requestSignIn,
   signOut as requestSignOut,
+  updateSecurityQuestion as requestSecurityQuestionUpdate,
   type AccountUser,
 } from './api/auth'
 
@@ -60,10 +64,16 @@ export async function signIn(displayName: string, password: string): Promise<Acc
 export async function registerAccount(
   displayName: string,
   password: string,
+  securityQuestion = '',
+  securityAnswer = '',
 ): Promise<AccountUser> {
-  const user = await requestRegistration(displayName, password)
-  activeUser.value = user
-  hasRestored.value = true
+  const user = await requestRegistration(
+    displayName,
+    password,
+    securityQuestion,
+    securityAnswer,
+  )
+  rememberSignedInUser(user)
   return user
 }
 
@@ -71,5 +81,51 @@ export async function registerAccount(
 export async function signOut(): Promise<void> {
   await requestSignOut()
   activeUser.value = null
+  hasRestored.value = true
+}
+
+/** 登录后修改密码；当前会话保持不变。 */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<AccountUser> {
+  const user = await requestChangePassword(currentPassword, newPassword)
+  rememberSignedInUser(user)
+  return user
+}
+
+/** 登录后设置或更新安全问题；需要当前密码。 */
+export async function updateSecurityQuestion(
+  currentPassword: string,
+  securityQuestion: string,
+  securityAnswer: string,
+): Promise<AccountUser> {
+  const user = await requestSecurityQuestionUpdate(
+    currentPassword,
+    securityQuestion,
+    securityAnswer,
+  )
+  rememberSignedInUser(user)
+  return user
+}
+
+/** 忘记密码时按昵称取安全问题。 */
+export function lookupSecurityQuestion(displayName: string): Promise<string> {
+  return fetchPasswordResetQuestion(displayName)
+}
+
+/** 用安全问题答案重置密码；后端会直接登录，这里同步全站账号状态。 */
+export async function resetPassword(
+  displayName: string,
+  securityAnswer: string,
+  newPassword: string,
+): Promise<AccountUser> {
+  const user = await requestPasswordReset(displayName, securityAnswer, newPassword)
+  rememberSignedInUser(user)
+  return user
+}
+
+function rememberSignedInUser(user: AccountUser): void {
+  activeUser.value = user
   hasRestored.value = true
 }

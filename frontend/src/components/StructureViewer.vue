@@ -1,23 +1,13 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
-import type { GLViewer } from '3dmol'
 import { faRotate } from '@fortawesome/free-solid-svg-icons/faRotate'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
 import type { StructureResult } from '../api/tasks'
 import { t } from '../locales'
-import { buildUnitCellCif } from '../structureCif'
-
-// 3Dmol 体积较大（约 157 KB gzip），只在结果页真正要画图时才动态加载。
-type ThreeDmolModule = typeof import('3dmol/build/3Dmol.es6-min.js')
-
-// 球太大会糊成一团、太小又看不出堆积方式；金属没有化学键，球稍大一点。
-const SPHERE_SCALE = 0.45
-const METAL_SPHERE_SCALE = 0.55
-const STICK_RADIUS = 0.12
-const CELL_COLOR = '#0b5d8a'
-const BACKGROUND_COLOR = '#ffffff'
+import type { StructureRenderer } from '../structureRenderer'
+import { buildStructureGeometry } from '../structureScene'
 
 const props = defineProps<{
   result: StructureResult
@@ -28,54 +18,16 @@ const isPreparing = ref(true)
 const isUnavailable = ref(false)
 const hasFailed = ref(false)
 
-// 3Dmol 的句柄不放进响应式对象：它内部字段很多，代理会拖慢每帧渲染。
-let viewer: GLViewer | null = null
-let resizeObserver: ResizeObserver | null = null
+// Three.js 体积较大；只在结果页真正要画图时才动态加载。
+let renderer: StructureRenderer | null = null
 
 function supportsWebGl(): boolean {
   try {
-    const canvas = document.createElement('canvas')
-    return Boolean(canvas.getContext('webgl2') ?? canvas.getContext('webgl'))
+    // Three.js 当前版本使用 WebGL2；只有 WebGL1 的设备会走“无法显示”的提示。
+    return document.createElement('canvas').getContext('webgl2') !== null
   } catch {
     return false
   }
-}
-
-function renderStructure(module: ThreeDmolModule): void {
-  if (host.value === null) {
-    return
-  }
-
-  viewer = module.createViewer(host.value, { backgroundColor: BACKGROUND_COLOR })
-  const model = viewer.addModel(buildUnitCellCif(props.result), 'cif')
-
-  const isMetallic = props.result.family === 'metallic'
-  viewer.setStyle(
-    {},
-    isMetallic
-      ? { sphere: { scale: METAL_SPHERE_SCALE } }
-      : { sphere: { scale: SPHERE_SCALE }, stick: { radius: STICK_RADIUS } },
-  )
-  // 只画晶胞棱框：默认的红/绿/蓝 a/b/c 箭头没有标签，会让学生误以为是化学键。
-  viewer.addUnitCell(model, {
-    box: { color: CELL_COLOR },
-    astyle: { hidden: true },
-    bstyle: { hidden: true },
-    cstyle: { hidden: true },
-  })
-  viewer.zoomTo()
-  viewer.render()
-
-  resizeObserver = new ResizeObserver(() => {
-    viewer?.resize()
-    viewer?.render()
-  })
-  resizeObserver.observe(host.value)
-}
-
-function resetView(): void {
-  viewer?.zoomTo()
-  viewer?.render()
 }
 
 onMounted(async () => {
@@ -86,8 +38,12 @@ onMounted(async () => {
   }
 
   try {
-    const module = await import('3dmol/build/3Dmol.es6-min.js')
-    renderStructure(module)
+    const geometry = buildStructureGeometry(props.result)
+    const { StructureRenderer: Renderer } = await import('../structureRenderer')
+    if (host.value === null) {
+      return
+    }
+    renderer = new Renderer(host.value, geometry)
   } catch (error) {
     // 技术细节只进控制台，界面上给学生一句能照做的提示。
     console.error(error)
@@ -97,11 +53,13 @@ onMounted(async () => {
   }
 })
 
+function resetView(): void {
+  renderer?.resetView()
+}
+
 onBeforeUnmount(() => {
-  resizeObserver?.disconnect()
-  resizeObserver = null
-  viewer?.clear()
-  viewer = null
+  renderer?.dispose()
+  renderer = null
 })
 </script>
 

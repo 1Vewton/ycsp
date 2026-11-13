@@ -1,18 +1,20 @@
-# 数据处理层 · 常数包（compute/app/constants）
+> English | [简体中文](./README.zh-CN.md)
 
-数据与纯常数集中在这里：`domain` 只放类型和规则，查数就来这里。
+# Data processing layer · Constants package (compute/app/constants)
 
-| 文件 | 作用 |
+Data and pure constants are centralized here: `domain` contains only types and rules, and looks up data here.
+
+| File | Purpose |
 | --- | --- |
-| `elements.py` | 元素属性：原子序数、Pauling 电负性、离子 / 共价 / 金属半径、成金刚石元素、常见电价 |
-| `structures.py` | 结构原型：编号、配位数、分数坐标、几何比值，以及金属与课本经典离子化合物的实测结构型表 |
-| `prediction_rules.py` | 判据阈值：Pauling 半径比分界、近边界容差、电负性差阈值 |
-| `codes.py` | 全部状态码：应答状态、结果依据、结果附注、错误 |
+| `elements.py` | Element properties: atomic number, Pauling electronegativity, ionic / covalent / metallic radii, diamond-forming elements, common ionic charges |
+| `structures.py` | Structure prototypes: IDs, coordination numbers, fractional coordinates, geometric ratios, measured structure tables for metals and classic textbook ionic compounds, and measured cell parameters for wurtzite / rutile |
+| `prediction_rules.py` | Thresholds: Pauling radius-ratio boundaries, near-boundary tolerance, electronegativity-difference threshold |
+| `codes.py` | All status codes: response status, result rationale, result caveats, errors |
 
-## 约定
+## Conventions
 
-- 只放数据与纯常数，不放业务逻辑；**不** import `app.domain` / `app.api`
-  （否则会与“数据 ← 逻辑”的方向相反，容易循环导入；`tests/test_constants.py` 会检查）。
-- 每个数值都注明单位或物理意义：长度用皮米（pm），角度用度（°），半径比等无量纲。
-- 补数据时按同样格式往下写，并在 `tests/test_element_data.py` 里补一条一致性断言，
-  避免“加了元素却漏了半径”这类问题。
+- Only data and pure constants, no business logic; **do not** import `app.domain` / `app.api`
+  (that would reverse the "data ← logic" direction and risk circular imports; `tests/test_constants.py` checks this).
+- Every number states its unit or physical meaning: lengths in picometers (pm), angles in degrees (°), ratios dimensionless.
+- When adding data, follow the same format and add a consistency assertion in `tests/test_element_data.py`,
+  so problems such as "element added but radius forgotten" do not slip through.

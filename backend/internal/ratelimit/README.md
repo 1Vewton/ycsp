@@ -1,39 +1,38 @@
-# 数据管理层 · 登录限流（backend/internal/ratelimit）
+> English | [简体中文](./README.zh-CN.md)
 
-限制连续登录失败，挡住暴力猜密码。计数与会话用同一个后端：Redis（默认）或进程内存（本地开发）。
+# Data management layer · Login rate limiting (backend/internal/ratelimit)
 
-| 文件 | 作用 |
+Limits consecutive login failures to block brute-force password guessing. Counters use the same backend as sessions: Redis (default) or process memory (local development).
+
+| File | Purpose |
 | --- | --- |
-| `counter.go` | `Counter` 接口与 `Policy` 阈值定义 |
-| `redis.go` | `RedisCounter`：`INCR` + 过期窗口，多实例共享 |
-| `memory.go` | `MemoryCounter`：进程内存，单机开发用 |
-| `guard.go` | `Guard`：判断是否应拒绝、记录失败、登录成功后清零 |
+| `counter.go` | `Counter` interface and `Policy` thresholds |
+| `redis.go` | `RedisCounter`: `INCR` + expiry window, shared across instances |
+| `memory.go` | `MemoryCounter`: process memory, for single-machine development |
+| `guard.go` | `Guard`: decides whether to reject, records failures, clears on successful sign-in |
 
-## 限流口径（默认值，可在 `.env` 改）
+## Rate-limit policy (defaults, configurable in `.env`)
 
-| 维度 | 键 | 默认 | 说明 |
+| Dimension | Key | Default | Meaning |
 | --- | --- | --- | --- |
-| 同一昵称 | `ycsp:login:account:<小写昵称>` | 15 分钟内 5 次 | 防“盯着一个账号猜” |
-| 同一地址 | `ycsp:login:address:<IP>` | 15 分钟内 20 次 | 防“换着账号撞库” |
+| Same display name | `ycsp:login:account:<lowercase name>` | 5 per 15 minutes | Stops guessing one account |
+| Same address | `ycsp:login:address:<IP>` | 20 per 15 minutes | Stops credential stuffing across accounts |
 
-- 达到阈值后，**即使密码正确也会先被拒绝**，直到窗口过期；
-- 登录成功后只清掉**昵称**计数：地址计数保留，否则攻破一个账号就能把整机限流清零；
-- 昵称计数统一转小写，避免 `Alice` / `alice` 换大小写绕过。
+- Once the threshold is reached, **even a correct password is rejected** until the window expires.
+- A successful sign-in clears only the **display-name** counter: the address counter remains, otherwise compromising one account could reset the whole machine's limit.
+- Display names are lowercased so `Alice` / `alice` cannot bypass the limit.
 
-## 为什么用固定窗口
+## Why a fixed window
 
-`INCR` + `EXPIRE` 是 Redis 上的原子小操作，足够挡住脚本猜密码，又不需要引入 Lua 脚本或额外数据结构。
-代价是窗口边界处可能放过约两倍的尝试次数——对教学场景可以接受。
+`INCR` + `EXPIRE` are small atomic Redis operations, enough to stop scripted password guessing without Lua scripts or extra data structures. The trade-off is that up to about twice the allowed attempts may pass around a window boundary — acceptable for a teaching scenario.
 
-## 已知限制
+## Known limitations
 
-- 按**直连地址**统计，不信任 `X-Forwarded-For`（防伪造）。部署在 nginx 后面时必须配置
-  `YCSP_TRUSTED_PROXIES`，否则所有学生会共用代理 IP 的失败计数；nginx 示例见
-  [../../README.md](../../README.md)《反向代理部署（nginx）》。
-- 只有直连地址命中可信代理时才解析 `X-Forwarded-For`，并从右往左取第一个不受信地址：
-  客户端自己塞在左侧的伪造值不会生效。
-- 转发头格式不合法时退回直连地址（安全优先），此时会暂时共用代理 IP 的计数。
-- 没有“解锁”接口：只能等窗口过期（默认 15 分钟）。
-- 计数为固定窗口，不做指数退避。
+- Counters are keyed by the **direct peer address** and do not trust `X-Forwarded-For` (anti-spoofing). Behind nginx you must configure `YCSP_TRUSTED_PROXIES`, otherwise all students share the proxy IP's failure count; see [../../README.md](../../README.md) "Reverse proxy deployment (nginx)".
+- `X-Forwarded-For` is parsed only when the direct peer matches a trusted proxy, and the first untrusted address is taken from right to left: forged values a client puts on the left have no effect.
+- If the forwarded header is malformed, fall back to the direct peer address (safety first); during that time the proxy IP's counter is shared.
+- There is no "unlock" endpoint: wait for the window to expire (15 minutes by default).
+- Password-reset answer failures use the same counters as login failures, so they also contribute to the lockout.
+- Counting uses a fixed window, with no exponential backoff.
 
-测试：`go test ./internal/ratelimit/`（Redis 用进程内 `miniredis`）。
+Tests: `go test ./internal/ratelimit/` (Redis is provided by in-process `miniredis`).

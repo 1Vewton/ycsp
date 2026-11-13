@@ -5,12 +5,15 @@
 """
 
 from math import sqrt
+from typing import NamedTuple
 
 PROTOTYPE_ROCK_SALT = "rock_salt"
 PROTOTYPE_CESIUM_CHLORIDE = "cesium_chloride"
 PROTOTYPE_ZINC_BLENDE = "zinc_blende"
+PROTOTYPE_WURTZITE = "wurtzite"
 PROTOTYPE_FLUORITE = "fluorite"
 PROTOTYPE_ANTIFLUORITE = "antifluorite"
+PROTOTYPE_RUTILE = "rutile"
 PROTOTYPE_DIAMOND = "diamond"
 PROTOTYPE_FACE_CENTERED_CUBIC = "face_centered_cubic"
 PROTOTYPE_BODY_CENTERED_CUBIC = "body_centered_cubic"
@@ -21,8 +24,10 @@ PROTOTYPE_COORDINATION_NUMBERS: dict[str, int] = {
     PROTOTYPE_ROCK_SALT: 6,
     PROTOTYPE_CESIUM_CHLORIDE: 8,
     PROTOTYPE_ZINC_BLENDE: 4,
+    PROTOTYPE_WURTZITE: 4,
     PROTOTYPE_FLUORITE: 8,
     PROTOTYPE_ANTIFLUORITE: 8,
+    PROTOTYPE_RUTILE: 6,
     PROTOTYPE_DIAMOND: 4,
     PROTOTYPE_FACE_CENTERED_CUBIC: 12,
     PROTOTYPE_BODY_CENTERED_CUBIC: 8,
@@ -54,7 +59,7 @@ METAL_STRUCTURE_TYPES: dict[str, str] = {
     "Zn": PROTOTYPE_HEXAGONAL_CLOSE_PACKED,
 }
 
-# 课本经典离子化合物的实测结构型。
+# 课本经典离子化合物的实测结构型（含 1:1 与 1:2）。
 # 半径比规则只是经验规律，边界附近会判错（例如 KCl 比值约 0.76，规则判成 8 配位，
 # 实测却是 NaCl 型），所以这些化合物直接采用实验数据，并在结果里说明差异。
 KNOWN_IONIC_STRUCTURES: dict[str, str] = {
@@ -77,9 +82,47 @@ KNOWN_IONIC_STRUCTURES: dict[str, str] = {
     "BaO": PROTOTYPE_ROCK_SALT,
     "BaS": PROTOTYPE_ROCK_SALT,
     "FeO": PROTOTYPE_ROCK_SALT,
-    "ZnS": PROTOTYPE_ZINC_BLENDE,
+    "ZnO": PROTOTYPE_WURTZITE,
+    "ZnS": PROTOTYPE_WURTZITE,
     "CaF2": PROTOTYPE_FLUORITE,
+    "MgF2": PROTOTYPE_RUTILE,
+    "TiO2": PROTOTYPE_RUTILE,
 }
+
+
+class WurtziteCellParameters(NamedTuple):
+    """六方纤锌矿型的实验晶胞参数（Å）；u 是阴离子沿 c 轴的分数坐标。"""
+
+    edge_a_angstrom: float
+    edge_c_angstrom: float
+    anion_position_u: float
+
+
+class RutileCellParameters(NamedTuple):
+    """四方金红石型的实验晶胞参数（Å）；u 是阴离子位置参数。"""
+
+    edge_a_angstrom: float
+    edge_c_angstrom: float
+    anion_position_u: float
+
+
+# 课本常见纤锌矿型化合物的实验晶胞参数（a、c 单位 Å）。
+# 数据取自常用晶体学数据表；u 是阴离子沿 c 轴的分数坐标，理想值 3/8。
+WURTZITE_CELL_PARAMETERS: dict[str, WurtziteCellParameters] = {
+    "ZnO": WurtziteCellParameters(3.2498, 5.2066, 0.3819),
+    "ZnS": WurtziteCellParameters(3.8230, 6.2610, 0.3750),
+}
+
+# 课本常见金红石型化合物的实验晶胞参数（a、c 单位 Å）。
+# 数据取自常用晶体学数据表；u 是阴离子位置参数。
+RUTILE_CELL_PARAMETERS: dict[str, RutileCellParameters] = {
+    "MgF2": RutileCellParameters(4.6210, 3.0520, 0.3050),
+    "TiO2": RutileCellParameters(4.5937, 2.9587, 0.3048),
+}
+
+# 这些物质除了六方纤锌矿型，还有别的常见晶型（例如 ZnS 的立方闪锌矿型），
+# 结果里要用 caveat_polymorph 提醒学生。
+POLYMORPHIC_WURTZITE_FORMULAS: frozenset[str] = frozenset({"ZnS"})
 
 # 立方与六方晶胞的角度（°）。
 RIGHT_ANGLE_DEGREE = 90.0
@@ -122,3 +165,17 @@ ALL_TETRAHEDRAL_HOLE_SITES = TETRAHEDRAL_HOLE_SITES_FIRST + TETRAHEDRAL_HOLE_SIT
 BODY_CENTERED_SITES = ((0.0, 0.0, 0.0), (0.5, 0.5, 0.5))
 # 六方最密堆积：底面顶点 1 个 + 体内 1 个。
 HEXAGONAL_CLOSE_PACKED_SITES = ((0.0, 0.0, 0.0), (1.0 / 3.0, 2.0 / 3.0, 0.5))
+
+# 六方纤锌矿型：阳离子在 (1/3, 2/3, 0) 与 (2/3, 1/3, 1/2)；
+# 阴离子在同一组 x-y 位置上，沿 c 轴偏移 u 与 u + 1/2。
+WURTZITE_CATION_SITES = (
+    (1.0 / 3.0, 2.0 / 3.0, 0.0),
+    (2.0 / 3.0, 1.0 / 3.0, 0.5),
+)
+WURTZITE_ANION_XY = ((1.0 / 3.0, 2.0 / 3.0), (2.0 / 3.0, 1.0 / 3.0))
+WURTZITE_ANION_Z_OFFSETS = (0.0, 0.5)
+# 理想纤锌矿的阴离子位置参数 u = 3/8（硬球模型的几何结果）。
+IDEAL_WURTZITE_ANION_U = 3.0 / 8.0
+
+# 四方金红石型：阳离子在顶点与体心；阴离子的 x-y-z 坐标由位置参数 u 决定。
+RUTILE_CATION_SITES = ((0.0, 0.0, 0.0), (0.5, 0.5, 0.5))

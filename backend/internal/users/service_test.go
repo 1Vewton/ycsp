@@ -123,3 +123,164 @@ func TestByIDReportsMissingUsers(t *testing.T) {
 		t.Errorf("error = %v, want ErrUserNotFound", err)
 	}
 }
+
+const (
+	securityQuestion = "你最喜欢的元素是什么？"
+	securityAnswer   = "钠Na"
+	newPassword      = "ycsp2027!"
+)
+
+func TestRegisterWithSecurityStoresOnlyAnswerHash(t *testing.T) {
+	service := users.New(testutil.OpenDatabase(t))
+
+	user, err := service.RegisterWithSecurity(
+		"小明", validPassword, "  你最喜欢的元素是什么？  ", "  钠Na  ",
+	)
+	if err != nil {
+		t.Fatalf("RegisterWithSecurity: %v", err)
+	}
+
+	if user.SecurityQuestion != "你最喜欢的元素是什么？" {
+		t.Errorf("security question = %q, want the trimmed input", user.SecurityQuestion)
+	}
+	if user.SecurityAnswerHash == "" || strings.Contains(user.SecurityAnswerHash, "钠Na") {
+		t.Error("security answer hash is empty or contains the plaintext answer")
+	}
+	if !auth.VerifySecurityAnswer(user.SecurityAnswerHash, " 钠NA ") {
+		t.Error("stored hash does not verify a normalized answer")
+	}
+}
+
+func TestRegisterRejectsIncompleteOrInvalidSecuritySetup(t *testing.T) {
+	service := users.New(testutil.OpenDatabase(t))
+
+	_, err := service.RegisterWithSecurity("小明", validPassword, securityQuestion, "")
+	if !errors.Is(err, users.ErrSecuritySetupIncomplete) {
+		t.Errorf("missing answer: error = %v, want ErrSecuritySetupIncomplete", err)
+	}
+
+	_, err = service.RegisterWithSecurity("小明", validPassword, "", securityAnswer)
+	if !errors.Is(err, users.ErrSecuritySetupIncomplete) {
+		t.Errorf("missing question: error = %v, want ErrSecuritySetupIncomplete", err)
+	}
+
+	_, err = service.RegisterWithSecurity("小明", validPassword, "短", securityAnswer)
+	var invalidQuestion *users.InvalidSecurityQuestionError
+	if !errors.As(err, &invalidQuestion) {
+		t.Errorf("short question: error = %v, want InvalidSecurityQuestionError", err)
+	}
+
+	_, err = service.RegisterWithSecurity("小明", validPassword, securityQuestion, "短")
+	var invalidAnswer *users.InvalidSecurityAnswerError
+	if !errors.As(err, &invalidAnswer) {
+		t.Errorf("short answer: error = %v, want InvalidSecurityAnswerError", err)
+	}
+}
+
+func TestChangePassword(t *testing.T) {
+	service := users.New(testutil.OpenDatabase(t))
+	registered, err := service.Register("小明", validPassword)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	updated, err := service.ChangePassword(registered.ID, validPassword, newPassword)
+	if err != nil {
+		t.Fatalf("ChangePassword: %v", err)
+	}
+	if !auth.VerifyPassword(updated.PasswordHash, newPassword) {
+		t.Error("new password does not verify against the stored hash")
+	}
+	if _, err := service.Authenticate("小明", validPassword); !errors.Is(
+		err, users.ErrInvalidCredentials,
+	) {
+		t.Errorf("old password: error = %v, want ErrInvalidCredentials", err)
+	}
+	if _, err := service.Authenticate("小明", newPassword); err != nil {
+		t.Errorf("new password: Authenticate error = %v", err)
+	}
+
+	if _, err := service.ChangePassword(registered.ID, validPassword, newPassword); !errors.Is(
+		err, users.ErrCurrentPasswordIncorrect,
+	) {
+		t.Errorf("wrong current password: error = %v, want ErrCurrentPasswordIncorrect", err)
+	}
+	if _, err := service.ChangePassword(registered.ID, newPassword, newPassword); !errors.Is(
+		err, users.ErrPasswordUnchanged,
+	) {
+		t.Errorf("same password: error = %v, want ErrPasswordUnchanged", err)
+	}
+	var weakPassword *users.WeakPasswordError
+	if _, err := service.ChangePassword(registered.ID, newPassword, "abc"); !errors.As(
+		err, &weakPassword,
+	) {
+		t.Errorf("weak password: error = %v, want WeakPasswordError", err)
+	}
+}
+
+func TestSetSecurityQuestionAndResetPassword(t *testing.T) {
+	service := users.New(testutil.OpenDatabase(t))
+	registered, err := service.Register("小明", validPassword)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	updated, err := service.SetSecurityQuestion(
+		registered.ID, validPassword, securityQuestion, securityAnswer,
+	)
+	if err != nil {
+		t.Fatalf("SetSecurityQuestion: %v", err)
+	}
+	if updated.SecurityQuestion != securityQuestion {
+		t.Errorf("security question = %q, want %q", updated.SecurityQuestion, securityQuestion)
+	}
+	if !auth.VerifySecurityAnswer(updated.SecurityAnswerHash, securityAnswer) {
+		t.Error("security answer hash does not verify the answer")
+	}
+	if _, err := service.SetSecurityQuestion(
+		registered.ID, "wrong-password", securityQuestion, securityAnswer,
+	); !errors.Is(err, users.ErrCurrentPasswordIncorrect) {
+		t.Errorf("wrong current password: error = %v, want ErrCurrentPasswordIncorrect", err)
+	}
+
+	question, err := service.QuestionFor("  小明 ")
+	if err != nil {
+		t.Fatalf("QuestionFor: %v", err)
+	}
+	if question != securityQuestion {
+		t.Errorf("question = %q, want %q", question, securityQuestion)
+	}
+	if _, err := service.QuestionFor("小红"); !errors.Is(
+		err, users.ErrPasswordResetUnavailable,
+	) {
+		t.Errorf("unknown account: error = %v, want ErrPasswordResetUnavailable", err)
+	}
+
+	if _, err := service.ResetPassword("小明", "wrong answer", newPassword); !errors.Is(
+		err, users.ErrPasswordResetFailed,
+	) {
+		t.Errorf("wrong answer: error = %v, want ErrPasswordResetFailed", err)
+	}
+	if _, err := service.ResetPassword("小红", securityAnswer, newPassword); !errors.Is(
+		err, users.ErrPasswordResetFailed,
+	) {
+		t.Errorf("unknown account reset: error = %v, want ErrPasswordResetFailed", err)
+	}
+
+	if _, err := service.ResetPassword(" 小明 ", " 钠NA ", newPassword); err != nil {
+		t.Fatalf("ResetPassword: %v", err)
+	}
+	if _, err := service.Authenticate("小明", validPassword); !errors.Is(
+		err, users.ErrInvalidCredentials,
+	) {
+		t.Errorf("old password after reset: error = %v, want ErrInvalidCredentials", err)
+	}
+	if _, err := service.Authenticate("小明", newPassword); err != nil {
+		t.Errorf("new password after reset: Authenticate error = %v", err)
+	}
+	if _, err := service.ResetPassword("小明", securityAnswer, newPassword); !errors.Is(
+		err, users.ErrPasswordUnchanged,
+	) {
+		t.Errorf("same password reset: error = %v, want ErrPasswordUnchanged", err)
+	}
+}

@@ -1,18 +1,43 @@
 package store_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/1Vewton/ycsp/backend/internal/auth"
 	"github.com/1Vewton/ycsp/backend/internal/store"
+	"github.com/1Vewton/ycsp/backend/internal/testutil"
 	"gorm.io/gorm"
 )
 
-// 每个测试用临时目录里的 SQLite 文件，彼此不干扰。
+// openMigratedDatabase 用测试配置的驱动建库；默认 SQLite，CI 也会跑 Postgres。
 func openMigratedDatabase(t *testing.T) *gorm.DB {
 	t.Helper()
+	return testutil.OpenDatabase(t)
+}
+
+// openSQLiteDatabase 只给 SQLite 专属行为（PRAGMA、旧表升级）使用；
+// 跑 Postgres 测试时跳过，避免 SQLite 语法污染其他驱动。
+func openSQLiteDatabase(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	database := openEmptySQLiteDatabase(t)
+	if err := store.Migrate(database); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	return database
+}
+
+// openEmptySQLiteDatabase 打开一个空 SQLite 库，不建表；给“旧库升级”测试用。
+func openEmptySQLiteDatabase(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	driver := os.Getenv("YCSP_TEST_DB_DRIVER")
+	if driver != "" && driver != store.DriverSQLite {
+		t.Skipf("SQLite-specific test skipped for driver %q", driver)
+	}
 
 	database, err := store.Open(store.Settings{
 		Driver: store.DriverSQLite,
@@ -20,9 +45,6 @@ func openMigratedDatabase(t *testing.T) *gorm.DB {
 	})
 	if err != nil {
 		t.Fatalf("open database: %v", err)
-	}
-	if err := store.Migrate(database); err != nil {
-		t.Fatalf("migrate: %v", err)
 	}
 
 	t.Cleanup(func() {
@@ -84,6 +106,22 @@ func TestMigrateCanRunTwice(t *testing.T) {
 
 	if err := store.Migrate(database); err != nil {
 		t.Fatalf("second migrate: %v", err)
+	}
+}
+
+func TestEnsureSchemaAcceptsMigratedDatabase(t *testing.T) {
+	database := openMigratedDatabase(t)
+
+	if err := store.EnsureSchema(database); err != nil {
+		t.Fatalf("EnsureSchema: %v", err)
+	}
+}
+
+func TestEnsureSchemaReportsMissingTables(t *testing.T) {
+	database := openEmptySQLiteDatabase(t)
+
+	if err := store.EnsureSchema(database); err == nil {
+		t.Fatal("expected an error for an empty database")
 	}
 }
 
@@ -183,7 +221,7 @@ func TestDeletingUserKeepsTheTaskWithoutOwner(t *testing.T) {
 }
 
 func TestSQLiteForeignKeysAreEnabled(t *testing.T) {
-	database := openMigratedDatabase(t)
+	database := openSQLiteDatabase(t)
 
 	var enabled int
 	if err := database.Raw("PRAGMA foreign_keys").Scan(&enabled).Error; err != nil {
@@ -214,13 +252,7 @@ func TestMigrateCreatesTheExpectedIndexes(t *testing.T) {
 }
 
 func TestMigrateReportsFailureOnAClosedDatabase(t *testing.T) {
-	database, err := store.Open(store.Settings{
-		Driver: store.DriverSQLite,
-		DSN:    filepath.Join(t.TempDir(), "closed.db"),
-	})
-	if err != nil {
-		t.Fatalf("open database: %v", err)
-	}
+	database := openMigratedDatabase(t)
 
 	sqlDatabase, err := database.DB()
 	if err != nil {
@@ -272,20 +304,8 @@ func TestUserStoresOnlyThePasswordHash(t *testing.T) {
 }
 
 func TestMigrateAddsPasswordHashToAnExistingUsersTable(t *testing.T) {
-	// 这个测试要从“没有 password_hash 的旧库”开始，所以不能先用 Migrate 建表。
-	database, err := store.Open(store.Settings{
-		Driver: store.DriverSQLite,
-		DSN:    filepath.Join(t.TempDir(), "legacy.db"),
-	})
-	if err != nil {
-		t.Fatalf("open database: %v", err)
-	}
-	t.Cleanup(func() {
-		sqlDatabase, err := database.DB()
-		if err == nil {
-			_ = sqlDatabase.Close()
-		}
-	})
+	// 这个测试要从“没有 password_hash 的旧库”开始，所以不能先建表。
+	database := openEmptySQLiteDatabase(t)
 
 	// 模拟账号体系之前的 users 表：没有 password_hash 列，而且已经有一条记录。
 	if err := database.Exec(`

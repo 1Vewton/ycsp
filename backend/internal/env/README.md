@@ -1,9 +1,11 @@
-# 数据管理层 · 环境变量（backend/internal/env）
+> English | [简体中文](./README.zh-CN.md)
 
-统一读取环境变量，未设置时返回默认值。
+# Data management layer · Environment variables (backend/internal/env)
 
-| 函数 | 作用 |
+Reads environment variables uniformly and returns defaults when a variable is unset.
+
+| Function | Purpose |
 | --- | --- |
-| `Load(path)` | 读取 `.env`；读不到只提示，不中断 |
-| `Get(key, fallback)` | 字符串配置 |
-| `GetInt(key, fallback)` | 整数配置（如端口） |
+| `Load(path)` | Read `.env`; a missing file only logs a hint, it does not abort |
+| `Get(key, fallback)` | String setting |
+| `GetInt(key, fallback)` | Integer setting (e.g. port) |

@@ -5,8 +5,10 @@
 package store
 
 import (
+	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/driver/mysql"
@@ -26,14 +28,71 @@ const (
 // 不打开的话 ON DELETE CASCADE / SET NULL 都不会生效。
 const sqliteForeignKeysPragma = "_pragma=foreign_keys(1)"
 
-// sqliteMaxOpenConnections 限制 SQLite 的连接数：它同一时刻只允许一个写入者，
-// 连接开多了会频繁报 "database is locked"。
-const sqliteMaxOpenConnections = 1
+// SQLite 同一时刻只允许一个写入者，连接开多了会频繁报 "database is locked"。
+// 它只用于本地开发和测试，所以这里固定单连接；生产用 Postgres / MySQL 的连接池。
+const (
+	sqliteMaxOpenConnections = 1
+	sqliteMaxIdleConnections = 1
+)
+
+// Postgres / MySQL 的默认连接池。教学场景并发不高，20 个连接足够；
+// 生产可以按数据库的 max_connections 和实际压测结果调整。
+const (
+	defaultServerMaxOpenConnections    = 20
+	defaultServerMaxIdleConnections    = 10
+	defaultServerConnectionMaxLifetime = 30 * time.Minute
+)
+
+// databasePingTimeout 是启动时检查数据库是否可用的上限：
+// 连不上时尽快失败，避免服务看起来启动成功、第一次请求才发现问题。
+const databasePingTimeout = 5 * time.Second
 
 // Settings 是数据库连接配置。
 type Settings struct {
 	Driver string // sqlite / postgres / mysql
 	DSN    string // 各驱动自己的连接串；sqlite 是数据库文件路径
+
+	// 连接池参数；0 表示使用驱动默认值。SQLite 会忽略这些值并固定为单连接。
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+}
+
+// poolSettings 是最终应用到 database/sql 的连接池参数。
+type poolSettings struct {
+	maxOpen     int
+	maxIdle     int
+	maxLifetime time.Duration
+}
+
+// connectionPoolSettings 按驱动决定连接池参数：
+// SQLite 固定单连接；Postgres / MySQL 使用配置值或服务端默认值。
+func connectionPoolSettings(settings Settings) poolSettings {
+	if settings.Driver == DriverSQLite {
+		return poolSettings{
+			maxOpen: sqliteMaxOpenConnections,
+			maxIdle: sqliteMaxIdleConnections,
+		}
+	}
+
+	result := poolSettings{
+		maxOpen:     defaultServerMaxOpenConnections,
+		maxIdle:     defaultServerMaxIdleConnections,
+		maxLifetime: defaultServerConnectionMaxLifetime,
+	}
+	if settings.MaxOpenConns > 0 {
+		result.maxOpen = settings.MaxOpenConns
+	}
+	if settings.MaxIdleConns > 0 {
+		result.maxIdle = settings.MaxIdleConns
+	}
+	if settings.ConnMaxLifetime > 0 {
+		result.maxLifetime = settings.ConnMaxLifetime
+	}
+	if result.maxIdle > result.maxOpen {
+		result.maxIdle = result.maxOpen
+	}
+	return result
 }
 
 // Open 按配置建立数据库连接；驱动名或连接串有问题时立刻返回错误。
@@ -53,12 +112,21 @@ func Open(settings Settings) (*gorm.DB, error) {
 		return nil, fmt.Errorf("db: open %s: %w", settings.Driver, err)
 	}
 
-	if settings.Driver == DriverSQLite {
-		sqlDatabase, err := database.DB()
-		if err != nil {
-			return nil, fmt.Errorf("db: read connection pool: %w", err)
-		}
-		sqlDatabase.SetMaxOpenConns(sqliteMaxOpenConnections)
+	sqlDatabase, err := database.DB()
+	if err != nil {
+		return nil, fmt.Errorf("db: read connection pool: %w", err)
+	}
+
+	pool := connectionPoolSettings(settings)
+	sqlDatabase.SetMaxOpenConns(pool.maxOpen)
+	sqlDatabase.SetMaxIdleConns(pool.maxIdle)
+	sqlDatabase.SetConnMaxLifetime(pool.maxLifetime)
+
+	pingContext, cancelPing := context.WithTimeout(context.Background(), databasePingTimeout)
+	defer cancelPing()
+	if err := sqlDatabase.PingContext(pingContext); err != nil {
+		_ = sqlDatabase.Close()
+		return nil, fmt.Errorf("db: ping %s: %w", settings.Driver, err)
 	}
 	return database, nil
 }
@@ -71,6 +139,20 @@ func Migrate(database *gorm.DB) error {
 	return nil
 }
 
+// EnsureSchema 检查三张表是否都已存在。
+// 生产默认关闭自动迁移，启动前用它挡住“忘了跑 -migrate-only”的部署。
+func EnsureSchema(database *gorm.DB) error {
+	for _, table := range []string{"users", "prediction_tasks", "structure_results"} {
+		if !database.Migrator().HasTable(table) {
+			return fmt.Errorf(
+				"db: table %q is missing; run `go run . -migrate-only` first", table,
+			)
+		}
+	}
+	return nil
+}
+
+// newDialector 按配置选择驱动。函数未导出，测试用 newDialector 覆盖三种引擎。
 func newDialector(settings Settings) (gorm.Dialector, error) {
 	if strings.TrimSpace(settings.DSN) == "" {
 		return nil, fmt.Errorf("db: YCSP_DB_DSN is empty")

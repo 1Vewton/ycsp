@@ -29,6 +29,12 @@ type User struct {
 	// default:'' 让已有数据库能平滑加上这一列——老账号先置空，重置密码后再写回。
 	PasswordHash string `gorm:"size:100;not null;default:''"`
 
+	// SecurityQuestion 是忘记密码时回答的问题；问题本身可以给本人看。
+	// SecurityAnswerHash 只存答案的 bcrypt 哈希（答案已统一去空格、转小写），从不存明文。
+	// 两列都有默认空串，老账号升级后先为空，登录后在账号页补设即可。
+	SecurityQuestion   string `gorm:"size:128;not null;default:''"`
+	SecurityAnswerHash string `gorm:"size:100;not null;default:''"`
+
 	CreatedAt time.Time
 }
 

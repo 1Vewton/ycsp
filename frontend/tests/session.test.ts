@@ -8,6 +8,10 @@ const authMocks = vi.hoisted(() => ({
   registerAccount: vi.fn(),
   signIn: vi.fn(),
   signOut: vi.fn(),
+  changePassword: vi.fn(),
+  updateSecurityQuestion: vi.fn(),
+  fetchPasswordResetQuestion: vi.fn(),
+  resetPassword: vi.fn(),
 }))
 
 vi.mock('../src/api/auth', () => authMocks)
@@ -80,6 +84,37 @@ describe('登录、注册与退出', () => {
     const session = await loadSession()
 
     await session.registerAccount('小明', 'Passw0rd!')
+
+    expect(session.signedInUser.value).toEqual(account)
+  })
+
+  it('修改密码后保持当前账号', async () => {
+    authMocks.changePassword.mockResolvedValue(account)
+    const session = await loadSession()
+
+    await expect(session.changePassword('old-pass', 'new-pass')).resolves.toEqual(account)
+
+    expect(authMocks.changePassword).toHaveBeenCalledWith('old-pass', 'new-pass')
+    expect(session.signedInUser.value).toEqual(account)
+  })
+
+  it('更新安全问题后刷新账号信息', async () => {
+    const updated = { ...account, security_question: '最喜欢的元素？' }
+    authMocks.updateSecurityQuestion.mockResolvedValue(updated)
+    const session = await loadSession()
+
+    await expect(
+      session.updateSecurityQuestion('old-pass', '最喜欢的元素？', '钠'),
+    ).resolves.toEqual(updated)
+
+    expect(session.signedInUser.value).toEqual(updated)
+  })
+
+  it('重置密码成功后直接登录', async () => {
+    authMocks.resetPassword.mockResolvedValue(account)
+    const session = await loadSession()
+
+    await expect(session.resetPassword('小明', '钠', 'new-pass')).resolves.toEqual(account)
 
     expect(session.signedInUser.value).toEqual(account)
   })

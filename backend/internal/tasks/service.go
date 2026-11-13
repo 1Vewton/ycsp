@@ -6,6 +6,7 @@ package tasks
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -44,11 +45,38 @@ func (err *CancelConflictError) Error() string {
 }
 
 const (
-	// queueCapacity 是排队缓冲上限；满了任务仍留在 pending，服务重启时会重新排队。
-	queueCapacity = 64
-	// workerCount 是同时计算的任务数：SQLite 只允许一个写入者，教学场景 1 个足够。
-	workerCount = 1
+	// QueueCapacity 是内存队列的缓冲上限；满了任务仍留在 pending，
+	// 由 sweepPending 重新入队，所以不需要把内存队列做成无界的。
+	QueueCapacity = 64
+	// DefaultWorkerCount 是未显式配置时的 worker 数：
+	// SQLite 只允许一个写入者，本地开发和测试用一个 worker 最稳。
+	DefaultWorkerCount = 1
+	// MaxWorkerCount 防止误配出成百上千个 worker 把数据库连接池打满。
+	MaxWorkerCount = 16
+	// pendingSweepInterval 是补扫 pending 任务的间隔：队列满时被丢掉的任务
+	// 最迟在一个间隔后重新入队，与前端 1 秒轮询的节奏一致。
+	pendingSweepInterval = time.Second
+	// pendingSweepBatchSize 限制一次补扫读取的任务数，积压时也不会每秒拉全表。
+	pendingSweepBatchSize = QueueCapacity
+
+	// DefaultHistoryLimit / MaxHistoryLimit 是“我的预测记录”每页条数的默认值与上限。
+	DefaultHistoryLimit = 20
+	MaxHistoryLimit     = 50
 )
+
+// HistoryEntry 是一条预测记录：任务本身，以及成功时对应的结构结果。
+type HistoryEntry struct {
+	Task   store.PredictionTask
+	Result *store.StructureResult
+}
+
+// HistoryPage 是一页预测记录；Total 是当前账号的全部任务数。
+type HistoryPage struct {
+	Entries []HistoryEntry
+	Total   int64
+	Limit   int
+	Offset  int
+}
 
 // Service 负责任务的落库、排队与执行。
 type Service struct {
@@ -56,29 +84,54 @@ type Service struct {
 	predictor Predictor
 	queue     chan uint
 	workers   sync.WaitGroup
+	// workerCount 是同时执行任务的 goroutine 数；由 main 按数据库类型配置。
+	workerCount int
+
+	// scheduled 记录已经交给队列、还没执行完的任务编号。
+	// 补扫会反复读取 pending 任务，靠它避免同一个任务在队列里排队多次。
+	scheduled   map[uint]struct{}
+	scheduledMu sync.Mutex
 }
 
-// New 创建任务服务；调用 Start 之前任务只会排队，不会执行。
+// New 创建任务服务，使用默认 worker 数；调用 Start 之前任务只会排队，不会执行。
 func New(database *gorm.DB, predictor Predictor) *Service {
+	return newService(database, predictor, DefaultWorkerCount)
+}
+
+// NewWithWorkers 创建指定 worker 数的任务服务。
+// SQLite 建议 1 个；Postgres / MySQL 可以按吞吐需要调大。
+func NewWithWorkers(database *gorm.DB, predictor Predictor, workers int) (*Service, error) {
+	if workers < 1 || workers > MaxWorkerCount {
+		return nil, fmt.Errorf("tasks: worker count must be between 1 and %d", MaxWorkerCount)
+	}
+	return newService(database, predictor, workers), nil
+}
+
+func newService(database *gorm.DB, predictor Predictor, workers int) *Service {
 	return &Service{
-		database:  database,
-		predictor: predictor,
-		queue:     make(chan uint, queueCapacity),
+		database:    database,
+		predictor:   predictor,
+		queue:       make(chan uint, QueueCapacity),
+		workerCount: workers,
+		scheduled:   make(map[uint]struct{}, QueueCapacity),
 	}
 }
 
-// Start 先把上次没算完的任务重新排队，再启动后台 worker。
-// ctx 取消后 worker 退出，配合 Stop 等待它们收尾。
+// Start 先把上次没算完的任务重新排队，再启动补扫与后台 worker。
+// ctx 取消后它们退出，配合 Stop 等待收尾。
 func (service *Service) Start(ctx context.Context) {
 	service.requeueUnfinished()
 
-	for workerIndex := 0; workerIndex < workerCount; workerIndex++ {
+	service.workers.Add(1)
+	go service.sweepPending(ctx)
+
+	for workerIndex := 0; workerIndex < service.workerCount; workerIndex++ {
 		service.workers.Add(1)
 		go service.work(ctx)
 	}
 }
 
-// Stop 等后台 worker 退出（需先取消传给 Start 的 ctx）。
+// Stop 等补扫与 worker 退出（需先取消传给 Start 的 ctx）。
 func (service *Service) Stop() {
 	service.workers.Wait()
 }
@@ -97,7 +150,9 @@ func (service *Service) Create(
 	if err := service.database.Create(&task).Error; err != nil {
 		return nil, err
 	}
-	service.enqueue(task.ID)
+	if !service.enqueue(task.ID) {
+		log.Printf("tasks: queue is full, task %d stays pending for the sweep", task.ID)
+	}
 	return &task, nil
 }
 
@@ -134,6 +189,69 @@ func (service *Service) Result(taskID uint) (*store.StructureResult, error) {
 	return &result, nil
 }
 
+// History 按账号分页取预测记录，最新的在前；匿名任务（user_id 为空）不会出现在这里。
+func (service *Service) History(userID uint, limit int, offset int) (*HistoryPage, error) {
+	if limit <= 0 {
+		limit = DefaultHistoryLimit
+	}
+	if limit > MaxHistoryLimit {
+		limit = MaxHistoryLimit
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	var total int64
+	if err := service.database.Model(&store.PredictionTask{}).
+		Where("user_id = ?", userID).
+		Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	var tasks []store.PredictionTask
+	if err := service.database.
+		Where("user_id = ?", userID).
+		Order("created_at DESC, id DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&tasks).Error; err != nil {
+		return nil, err
+	}
+
+	resultsByTask := make(map[uint]*store.StructureResult, len(tasks))
+	if len(tasks) > 0 {
+		taskIDs := make([]uint, 0, len(tasks))
+		for _, task := range tasks {
+			taskIDs = append(taskIDs, task.ID)
+		}
+
+		var results []store.StructureResult
+		if err := service.database.
+			Where("task_id IN ?", taskIDs).
+			Find(&results).Error; err != nil {
+			return nil, err
+		}
+		for index := range results {
+			result := results[index]
+			resultsByTask[result.TaskID] = &result
+		}
+	}
+
+	entries := make([]HistoryEntry, 0, len(tasks))
+	for _, task := range tasks {
+		entries = append(entries, HistoryEntry{
+			Task:   task,
+			Result: resultsByTask[task.ID],
+		})
+	}
+	return &HistoryPage{
+		Entries: entries,
+		Total:   total,
+		Limit:   limit,
+		Offset:  offset,
+	}, nil
+}
+
 // Cancel 只允许取消排队中的任务；已经开始或结束的任务返回 CancelConflictError。
 func (service *Service) Cancel(taskID uint) (*store.PredictionTask, error) {
 	update := service.database.Model(&store.PredictionTask{}).
@@ -155,13 +273,88 @@ func (service *Service) Cancel(taskID uint) (*store.PredictionTask, error) {
 	return service.Get(taskID)
 }
 
-// enqueue 把任务放进队列；队列满时只记日志，任务仍是 pending（重启会重新排队）。
-func (service *Service) enqueue(taskID uint) {
+// enqueue 把任务放进队列；同一任务只会放一次。
+// 队列满时返回 false，任务仍是 pending，由 sweepPending 稍后重试。
+func (service *Service) enqueue(taskID uint) bool {
+	if !service.markScheduled(taskID) {
+		return true // 已经在队列或执行中
+	}
 	select {
 	case service.queue <- taskID:
+		return true
 	default:
-		log.Printf("tasks: queue is full, task %d stays pending", taskID)
+		service.forgetScheduled(taskID)
+		return false
 	}
+}
+
+// markScheduled 记录任务已经交给队列；重复调用返回 false。
+func (service *Service) markScheduled(taskID uint) bool {
+	service.scheduledMu.Lock()
+	defer service.scheduledMu.Unlock()
+	if _, exists := service.scheduled[taskID]; exists {
+		return false
+	}
+	service.scheduled[taskID] = struct{}{}
+	return true
+}
+
+// forgetScheduled 在任务执行完（或入队失败）后清掉记录。
+func (service *Service) forgetScheduled(taskID uint) {
+	service.scheduledMu.Lock()
+	delete(service.scheduled, taskID)
+	service.scheduledMu.Unlock()
+}
+
+// sweepPending 周期性补扫 pending 任务：
+// 队列满时 enqueue 会放弃，只靠创建时那一次入队会让任务永远停在 pending。
+func (service *Service) sweepPending(ctx context.Context) {
+	defer service.workers.Done()
+	ticker := time.NewTicker(pendingSweepInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			service.enqueuePendingTasks()
+		}
+	}
+}
+
+// enqueuePendingTasks 读取最早的一批 pending 任务补入队列；
+// 队列仍满时剩下的任务留给下一轮，不在这里死等。
+func (service *Service) enqueuePendingTasks() {
+	// 队列满时补扫也放不进去，等 worker 腾出位置再查数据库。
+	if len(service.queue) == cap(service.queue) {
+		return
+	}
+
+	taskIDs, err := service.pendingTaskIDs()
+	if err != nil {
+		log.Printf("tasks: load pending tasks for the sweep: %v", err)
+		return
+	}
+	waiting := 0
+	for _, taskID := range taskIDs {
+		if !service.enqueue(taskID) {
+			waiting++
+		}
+	}
+	if waiting > 0 {
+		log.Printf("tasks: queue is full, %d pending task(s) wait for the next sweep", waiting)
+	}
+}
+
+// pendingTaskIDs 按创建顺序取一批 pending 任务编号。
+func (service *Service) pendingTaskIDs() ([]uint, error) {
+	var taskIDs []uint
+	err := service.database.Model(&store.PredictionTask{}).
+		Where("status = ?", store.TaskStatusPending).
+		Order("created_at, id").
+		Limit(pendingSweepBatchSize).
+		Pluck("id", &taskIDs).Error
+	return taskIDs, err
 }
 
 // requeueUnfinished 处理上次进程退出时的残留：
@@ -173,15 +366,18 @@ func (service *Service) requeueUnfinished() {
 		log.Printf("tasks: reset running tasks: %v", err)
 	}
 
-	var taskIDs []uint
-	if err := service.database.Model(&store.PredictionTask{}).
-		Where("status = ?", store.TaskStatusPending).
-		Order("created_at").
-		Pluck("id", &taskIDs).Error; err != nil {
+	taskIDs, err := service.pendingTaskIDs()
+	if err != nil {
 		log.Printf("tasks: load pending tasks: %v", err)
 		return
 	}
+	waiting := 0
 	for _, taskID := range taskIDs {
-		service.enqueue(taskID)
+		if !service.enqueue(taskID) {
+			waiting++
+		}
+	}
+	if waiting > 0 {
+		log.Printf("tasks: queue is full at startup, %d pending task(s) wait for the sweep", waiting)
 	}
 }

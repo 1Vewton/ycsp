@@ -1,32 +1,34 @@
-# 数据处理层 · 测试（compute/tests）
+> English | [简体中文](./README.zh-CN.md)
 
-用 `uv run pytest` 运行（从 `compute/` 根目录），命令与 CI 一致。
+# Data processing layer · Tests (compute/tests)
 
-| 文件 | 覆盖内容 |
+Run with `uv run pytest` from the `compute/` root; the command matches CI.
+
+| File | Coverage |
 | --- | --- |
-| `test_composition.py` | 化学式解析：下标、括号、空格，以及各种写错时的 code |
-| `test_structure.py` | 元素 / 原子 / 晶胞的校验：非正棱长、夹角越界、坐标不是有限数 |
-| `test_prototypes.py` | 9 种结构原型的晶胞边长公式、原子个数与分数坐标范围 |
-| `test_prediction.py` | 课本经典例子（NaCl / CsCl / CaF₂ / Na₂O / ZnS / 金刚石 / SiC / Cu / Fe / Mg）的结构型与晶胞边长 |
-| `test_element_data.py` | 常数包数据的一致性：漏登记元素、金属缺半径、离子缺电负性 |
-| `test_constants.py` | 架构约束：常数包不得 import `app.domain` / `app.api` |
-| `test_serialization.py` | 应答字段名、展示精度（所有浮点都舍入到 3 位） |
-| `test_predict_api.py` | `POST /predict` 的应答契约：离子 / 金属两类结果，以及可翻译的 code |
-| `test_request_context.py` | 请求编号：沿用 / 生成 / 非法值替换，预测日志带上 request_id |
-| `test_api_errors.py` | `GET /health`、不支持的物质、未预期异常的统一应答 |
-| `test_env.py` | 环境变量读取：缺省值、空值、非法整数 |
+| `test_composition.py` | Formula parsing: subscripts, brackets, spaces, and the code returned for each malformed input |
+| `test_structure.py` | Element / atom / unit-cell validation: non-positive edges, out-of-range angles, non-finite coordinates |
+| `test_prototypes.py` | Edge-length formulas, atom counts, and fractional-coordinate ranges for the 11 structure prototypes |
+| `test_prediction.py` | Structure type and unit-cell edges for classic textbook examples (NaCl / CsCl / CaF₂ / Na₂O / ZnO / ZnS / MgF₂ / TiO₂ / diamond / SiC / Cu / Fe / Mg) |
+| `test_element_data.py` | Consistency of constants data: unregistered elements, metals missing radii, ions missing electronegativity |
+| `test_constants.py` | Architecture constraint (no `app.domain` / `app.api` imports) and consistency of wurtzite / rutile cell parameters |
+| `test_serialization.py` | Response field names and display precision (all floats rounded to 3 decimals) |
+| `test_predict_api.py` | `POST /predict` response contract: ionic / rutile / metallic results, plus translatable codes |
+| `test_request_context.py` | Request IDs: reuse / generate / replace invalid values, and prediction logs carrying request_id |
+| `test_api_errors.py` | `GET /health`, unsupported substances, and unified responses for unexpected exceptions |
+| `test_env.py` | Environment variable reading: defaults, empty values, invalid integers |
 
-## 覆盖率
+## Coverage
 
 ```powershell
 uv run pytest --cov=app --cov-report=term-missing
 ```
 
-当前约 98%。未覆盖的主要是启动入口（`app/main.py` 会真的占用端口）、
-`app/domain/prediction.py` 里“元素数据缺失 / 半径比过小”这类要构造坏数据才能触发的防御分支，
-以及日志配置里“根日志已有 handler”的分支。
+Currently about 98%. The main uncovered parts are the startup entry (`app/main.py` really binds the port),
+defensive branches in `app/domain/prediction.py` that require deliberately bad data (missing element data / radius ratio too small),
+and the "root logger already has a handler" branch in logging setup.
 
-CI 用 `--cov-fail-under=90` 兜底：新增代码如果完全没测，流水线会直接失败。
+CI enforces `--cov-fail-under=90`: new code with no tests at all fails the pipeline.
 
-> 晶胞边长的允许误差是 0.01 Å。硬球模型本身就有几个百分点的系统偏差，
-> 所以断言比较的是“是否与课本同一数量级且结构型一致”，而不是实验精修值。
+> The allowed error for unit-cell edges is 0.01 Å. The hard-sphere model itself has a systematic deviation of a few percent,
+> so assertions compare "same order of magnitude as the textbook and same structure type", not refined experimental values.

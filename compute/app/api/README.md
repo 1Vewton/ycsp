@@ -1,15 +1,17 @@
-# 数据处理层 · 接口层（compute/app/api）
+> English | [简体中文](./README.zh-CN.md)
 
-数据管理层调用的 HTTP 接口。
+# Data processing layer · HTTP API (compute/app/api)
 
-| 文件 | 作用 |
+HTTP endpoints called by the data management layer.
+
+| File | Purpose |
 | --- | --- |
-| `health.py` | `GET /health` 路由 |
-| `predict.py` | `POST /predict` 路由：把领域层的预测结果包成统一应答 |
-| `request_context.py` | 请求编号：沿用/生成 `X-Request-ID`、写回响应头、记录带编号的请求日志 |
-| `serialization.py` | 结果转字典：晶胞参数、原子坐标，浮点数按展示精度舍入 |
-| `display.py` | 展示精度（保留几位小数）与舍入函数 |
-| `errors.py` | 框架层错误（请求体不合法、未预期异常）也转成统一应答，避免界面出现英文报错 |
+| `health.py` | `GET /health` route |
+| `predict.py` | `POST /predict` route: wraps the domain prediction result in the unified response |
+| `request_context.py` | Request IDs: reuse/generate `X-Request-ID`, write it back to the response header, log requests with the ID |
+| `serialization.py` | Result to dictionary: unit-cell parameters, atom coordinates, floats rounded for display |
+| `display.py` | Display precision (how many decimal places) and rounding functions |
+| `errors.py` | Framework-level errors (invalid request body, unexpected exception) also become unified responses, so the UI never shows an English error |
 
-状态码统一放在 [../constants/codes.py](../constants/codes.py)（语言无关，文案由前端翻译）。
+Status codes live in [../constants/codes.py](../constants/codes.py) (language-neutral; the frontend translates the copy).
 

@@ -11,8 +11,8 @@ const ANGLE_TOLERANCE_DEGREE = 0.5
 const RIGHT_ANGLE_DEGREE = 90
 const HEXAGONAL_GAMMA_DEGREE = 120
 
-/** 晶胞形状：立方、六方，或无法归入这两类的普通晶胞。 */
-export type CellShape = 'cubic' | 'hexagonal' | 'general'
+/** 晶胞形状：立方、四方、六方，或无法归入这些类的普通晶胞。 */
+export type CellShape = 'cubic' | 'tetragonal' | 'hexagonal' | 'general'
 
 /** 一条要展示的晶胞参数，例如 { label: 'a', value: '5.66' }。 */
 export interface CellMeasure {
@@ -36,6 +36,15 @@ export function describeCellShape(cell: StructureCell): CellShape {
     isRightAngle(cell.angle_gamma_degree)
   ) {
     return 'cubic'
+  }
+
+  if (
+    equalBaseEdges &&
+    isRightAngle(cell.angle_alpha_degree) &&
+    isRightAngle(cell.angle_beta_degree) &&
+    isRightAngle(cell.angle_gamma_degree)
+  ) {
+    return 'tetragonal'
   }
 
   if (

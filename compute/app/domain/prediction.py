@@ -16,6 +16,7 @@ from app.constants.codes import (
     CAVEAT_LOW_IONIC_CHARACTER,
     CAVEAT_METAL_STRUCTURE_EXPERIMENTAL,
     CAVEAT_NEAR_BOUNDARY,
+    CAVEAT_POLYMORPH,
     CAVEAT_RADIUS_RATIO_EMPIRICAL,
     CAVEAT_STOICHIOMETRY_OUTSIDE_BAND,
     ERROR_COMPOSITION_NOT_SUPPORTED,
@@ -28,6 +29,8 @@ from app.constants.codes import (
     RULE_FLUORITE_STOICHIOMETRY,
     RULE_METAL_EXPERIMENTAL,
     RULE_RADIUS_RATIO,
+    RULE_RUTILE_EXPERIMENTAL,
+    RULE_WURTZITE_EXPERIMENTAL,
     RULE_ZINC_BLENDE_COVALENT,
 )
 from app.constants.elements import ANION_CHARGES, CATION_CHARGES, DIAMOND_FORMING_ELEMENTS
@@ -43,6 +46,7 @@ from app.constants.prediction_rules import (
 from app.constants.structures import (
     KNOWN_IONIC_STRUCTURES,
     METAL_STRUCTURE_TYPES,
+    POLYMORPHIC_WURTZITE_FORMULAS,
     PROTOTYPE_ANTIFLUORITE,
     PROTOTYPE_BODY_CENTERED_CUBIC,
     PROTOTYPE_CESIUM_CHLORIDE,
@@ -52,7 +56,11 @@ from app.constants.structures import (
     PROTOTYPE_FLUORITE,
     PROTOTYPE_HEXAGONAL_CLOSE_PACKED,
     PROTOTYPE_ROCK_SALT,
+    PROTOTYPE_RUTILE,
+    PROTOTYPE_WURTZITE,
     PROTOTYPE_ZINC_BLENDE,
+    RUTILE_CELL_PARAMETERS,
+    WURTZITE_CELL_PARAMETERS,
 )
 from app.domain import prototypes
 from app.domain.composition import Composition, parse_formula
@@ -221,6 +229,8 @@ def _predict_ionic(composition: Composition) -> PredictionResult:
     if stoichiometry == (1, 1):
         return _predict_one_to_one(pair)
     if stoichiometry == (1, 2):
+        if pair.formula_key in RUTILE_CELL_PARAMETERS:
+            return _predict_rutile(pair)
         return _predict_fluorite(pair, antifluorite=False)
     if stoichiometry == (2, 1):
         return _predict_fluorite(pair, antifluorite=True)
@@ -280,12 +290,7 @@ def _predict_one_to_one(pair: IonicPair) -> PredictionResult:
     rule_prototype = _select_by_radius_ratio(pair.radius_ratio)
     experimental_prototype = KNOWN_IONIC_STRUCTURES.get(pair.formula_key)
     prototype = experimental_prototype or rule_prototype
-    cell = _IONIC_CELL_BUILDERS[prototype](
-        COMMON_ELEMENTS[pair.cation_symbol],
-        pair.cation_radius_picometers,
-        COMMON_ELEMENTS[pair.anion_symbol],
-        pair.anion_radius_picometers,
-    )
+    cell = _build_one_to_one_cell(pair, prototype)
     return _result(
         composition=pair.composition,
         family=FAMILY_IONIC,
@@ -296,10 +301,42 @@ def _predict_one_to_one(pair: IonicPair) -> PredictionResult:
     )
 
 
+def _build_one_to_one_cell(pair: IonicPair, prototype: str) -> UnitCell:
+    """1:1 离子晶体的晶胞：纤锌矿用实测参数，其余原型按半径相切计算。"""
+    if prototype == PROTOTYPE_WURTZITE:
+        parameters = WURTZITE_CELL_PARAMETERS.get(pair.formula_key)
+        if parameters is not None:
+            return prototypes.build_wurtzite(
+                COMMON_ELEMENTS[pair.cation_symbol],
+                COMMON_ELEMENTS[pair.anion_symbol],
+                parameters,
+            )
+        return prototypes.build_ideal_wurtzite(
+            COMMON_ELEMENTS[pair.cation_symbol],
+            pair.cation_radius_picometers,
+            COMMON_ELEMENTS[pair.anion_symbol],
+            pair.anion_radius_picometers,
+        )
+    return _IONIC_CELL_BUILDERS[prototype](
+        COMMON_ELEMENTS[pair.cation_symbol],
+        pair.cation_radius_picometers,
+        COMMON_ELEMENTS[pair.anion_symbol],
+        pair.anion_radius_picometers,
+    )
+
+
 def _one_to_one_rule_notice(
     pair: IonicPair, rule_prototype: str, experimental_prototype: str | None
 ) -> Notice:
     """说明“这个结构是怎么来的”：规则直接给出，还是按实验数据覆盖了规则。"""
+    if experimental_prototype == PROTOTYPE_WURTZITE:
+        return Notice(
+            RULE_WURTZITE_EXPERIMENTAL,
+            {
+                "ratio": pair.radius_ratio,
+                "coordination_number": PROTOTYPE_COORDINATION_NUMBERS[PROTOTYPE_WURTZITE],
+            },
+        )
     if experimental_prototype is not None and experimental_prototype != rule_prototype:
         return Notice(
             RULE_EXPERIMENTAL_OVERRIDE,
@@ -327,6 +364,8 @@ def _one_to_one_caveats(
         caveats.append(Notice(CAVEAT_RADIUS_RATIO_EMPIRICAL))
     elif experimental_prototype == rule_prototype:
         caveats.append(Notice(CAVEAT_CONFIRMED_BY_EXPERIMENT))
+    if pair.formula_key in POLYMORPHIC_WURTZITE_FORMULAS:
+        caveats.append(Notice(CAVEAT_POLYMORPH))
 
     near_boundary = _near_boundary_notice(pair.radius_ratio)
     if near_boundary is not None:
@@ -423,6 +462,37 @@ def _fluorite_caveats(pair: IonicPair, prototype: str) -> tuple[Notice, ...]:
     if low_ionic_character is not None:
         caveats.append(low_ionic_character)
     return tuple(caveats)
+
+
+def _predict_rutile(pair: IonicPair) -> PredictionResult:
+    """1:2 离子晶体中实测为金红石型的经典化合物（MgF2 / TiO2）。"""
+    parameters = RUTILE_CELL_PARAMETERS[pair.formula_key]
+    cell = prototypes.build_rutile(
+        COMMON_ELEMENTS[pair.cation_symbol],
+        COMMON_ELEMENTS[pair.anion_symbol],
+        parameters,
+    )
+    return _result(
+        composition=pair.composition,
+        family=FAMILY_IONIC,
+        prototype=PROTOTYPE_RUTILE,
+        rule=Notice(
+            RULE_RUTILE_EXPERIMENTAL,
+            {
+                "ratio": pair.radius_ratio,
+                "coordination_number": PROTOTYPE_COORDINATION_NUMBERS[PROTOTYPE_RUTILE],
+                "rule_coordination_number": PROTOTYPE_COORDINATION_NUMBERS[PROTOTYPE_FLUORITE],
+            },
+        ),
+        caveats=_rutile_caveats(pair),
+        cell=cell,
+    )
+
+
+def _rutile_caveats(pair: IonicPair) -> tuple[Notice, ...]:
+    """金红石型结果的附注：只有键的共价性需要提醒。"""
+    low_ionic_character = _low_ionic_character_notice(pair.electronegativity_difference)
+    return () if low_ionic_character is None else (low_ionic_character,)
 
 
 def _result(

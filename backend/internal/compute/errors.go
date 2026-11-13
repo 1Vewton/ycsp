@@ -1,6 +1,7 @@
 package compute
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -42,7 +43,22 @@ func (err *ProtocolError) Error() string {
 	return fmt.Sprintf("compute: protocol problem %s (status %d)", err.Problem, err.StatusCode)
 }
 
-// TransportError 表示连不上数据处理层：没启动、端口不对、超时。
+// TimeoutError 表示数据处理层在限定时间内没有交出结果（可能在排队，也可能算得太慢）。
+// 与 TransportError 分开，前端才能告诉学生“等太久”，而不是“连不上”。
+type TimeoutError struct {
+	URL string
+	Err error
+}
+
+func (err *TimeoutError) Error() string {
+	return fmt.Sprintf("compute: %s did not answer in time: %v", err.URL, err.Err)
+}
+
+func (err *TimeoutError) Unwrap() error {
+	return err.Err
+}
+
+// TransportError 表示连不上数据处理层：没启动、端口不对、连接被拒绝。
 type TransportError struct {
 	URL string
 	Err error
@@ -52,11 +68,23 @@ func (err *TransportError) Error() string {
 	return fmt.Sprintf("compute: cannot reach %s: %v", err.URL, err.Err)
 }
 
+func (err *TransportError) Unwrap() error {
+	return err.Err
+}
+
 // Describe 把客户端错误翻成前端可用的 code 与 params。
 func Describe(err error) (string, map[string]any) {
 	var predictionError *PredictionError
 	if errors.As(err, &predictionError) {
 		return predictionError.Code, predictionError.Params
+	}
+
+	var timeoutError *TimeoutError
+	if errors.As(err, &timeoutError) {
+		return codes.ComputeTimeout, nil
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return codes.ComputeTimeout, nil
 	}
 
 	var transportError *TransportError

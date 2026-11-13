@@ -607,3 +607,230 @@ func TestTaskCreatedWhileSignedInRecordsTheOwner(t *testing.T) {
 		t.Errorf("task owner = %q, want 小明", owner.DisplayName)
 	}
 }
+
+const (
+	apiSecurityQuestion = "你最喜欢的元素是什么？"
+	apiSecurityAnswer   = "钠Na"
+	apiNewPassword      = "ycsp2027!"
+)
+
+// registerUserWithSecurity 注册一个带安全问题的账号，并返回登录后的 Cookie。
+func registerUserWithSecurity(t *testing.T, router http.Handler, displayName string) *http.Cookie {
+	t.Helper()
+
+	body := `{"display_name":"` + displayName +
+		`","password":"` + validPassword +
+		`","security_question":"` + apiSecurityQuestion +
+		`","security_answer":"` + apiSecurityAnswer + `"}`
+	recorder, _ := performAuthRequest(
+		t, router, http.MethodPost, "/api/users", body, nil,
+	)
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("register status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	return sessionCookie(t, recorder)
+}
+
+func TestRegisterWithSecurityQuestionReturnsQuestionOnly(t *testing.T) {
+	router, _ := newAuthRouter(t)
+
+	recorder, payload := performAuthRequest(
+		t, router, http.MethodPost, "/api/users",
+		`{"display_name":"小明","password":"`+validPassword+
+			`","security_question":"`+apiSecurityQuestion+
+			`","security_answer":"`+apiSecurityAnswer+`"}`,
+		nil,
+	)
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+
+	user, ok := payload["user"].(map[string]any)
+	if !ok {
+		t.Fatalf("payload has no user: %v", payload)
+	}
+	if user["security_question"] != apiSecurityQuestion {
+		t.Errorf("security_question = %v, want %q", user["security_question"], apiSecurityQuestion)
+	}
+	if _, leaked := user["security_answer_hash"]; leaked {
+		t.Error("user payload must not contain the security answer hash")
+	}
+	if _, leaked := user["password_hash"]; leaked {
+		t.Error("user payload must not contain the password hash")
+	}
+
+	meRecorder, mePayload := performAuthRequest(
+		t, router, http.MethodGet, "/api/users/me", "", sessionCookie(t, recorder),
+	)
+	if meRecorder.Code != http.StatusOK {
+		t.Fatalf("me status = %d, want %d", meRecorder.Code, http.StatusOK)
+	}
+	meUser := mePayload["user"].(map[string]any)
+	if meUser["security_question"] != apiSecurityQuestion {
+		t.Errorf("me security_question = %v, want %q", meUser["security_question"], apiSecurityQuestion)
+	}
+}
+
+func TestChangePasswordKeepsSessionAndUpdatesCredentials(t *testing.T) {
+	router, _ := newAuthRouter(t)
+	cookie := registerUser(t, router, "小明")
+
+	wrongRecorder, wrongPayload := performAuthRequest(
+		t, router, http.MethodPut, "/api/users/me/password",
+		`{"current_password":"ycsp2026?","new_password":"`+apiNewPassword+`"}`, cookie,
+	)
+	if wrongRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("wrong password status = %d, want %d", wrongRecorder.Code, http.StatusBadRequest)
+	}
+	if wrongPayload["code"] != codes.CurrentPasswordIncorrect {
+		t.Errorf("wrong password code = %v, want %q", wrongPayload["code"], codes.CurrentPasswordIncorrect)
+	}
+
+	changeRecorder, changePayload := performAuthRequest(
+		t, router, http.MethodPut, "/api/users/me/password",
+		`{"current_password":"`+validPassword+`","new_password":"`+apiNewPassword+`"}`, cookie,
+	)
+	if changeRecorder.Code != http.StatusOK {
+		t.Fatalf("change status = %d, body = %s", changeRecorder.Code, changeRecorder.Body.String())
+	}
+	if changePayload["code"] != codes.PasswordChanged {
+		t.Errorf("change code = %v, want %q", changePayload["code"], codes.PasswordChanged)
+	}
+
+	// 修改密码不应把当前会话踢下线。
+	meRecorder, _ := performAuthRequest(t, router, http.MethodGet, "/api/users/me", "", cookie)
+	if meRecorder.Code != http.StatusOK {
+		t.Errorf("me after change = %d, want %d", meRecorder.Code, http.StatusOK)
+	}
+
+	oldRecorder, oldPayload := performAuthRequest(
+		t, router, http.MethodPost, "/api/sessions",
+		`{"display_name":"小明","password":"`+validPassword+`"}`, nil,
+	)
+	if oldRecorder.Code != http.StatusUnauthorized {
+		t.Errorf("old password sign-in = %d, want %d", oldRecorder.Code, http.StatusUnauthorized)
+	}
+	if oldPayload["code"] != codes.InvalidCredentials {
+		t.Errorf("old password code = %v, want %q", oldPayload["code"], codes.InvalidCredentials)
+	}
+
+	newRecorder, newPayload := performAuthRequest(
+		t, router, http.MethodPost, "/api/sessions",
+		`{"display_name":"小明","password":"`+apiNewPassword+`"}`, nil,
+	)
+	if newRecorder.Code != http.StatusOK {
+		t.Fatalf("new password sign-in = %d, body = %s", newRecorder.Code, newRecorder.Body.String())
+	}
+	if newPayload["code"] != codes.SignedIn {
+		t.Errorf("new password code = %v, want %q", newPayload["code"], codes.SignedIn)
+	}
+}
+
+func TestSecurityQuestionSetupAndPasswordReset(t *testing.T) {
+	router, _ := newAuthRouter(t)
+	cookie := registerUser(t, router, "小明")
+
+	updateRecorder, updatePayload := performAuthRequest(
+		t, router, http.MethodPut, "/api/users/me/security-question",
+		`{"current_password":"`+validPassword+
+			`","security_question":"`+apiSecurityQuestion+
+			`","security_answer":"`+apiSecurityAnswer+`"}`,
+		cookie,
+	)
+	if updateRecorder.Code != http.StatusOK {
+		t.Fatalf("update question status = %d, body = %s", updateRecorder.Code, updateRecorder.Body.String())
+	}
+	if updatePayload["code"] != codes.SecurityQuestionUpdated {
+		t.Errorf("update code = %v, want %q", updatePayload["code"], codes.SecurityQuestionUpdated)
+	}
+
+	questionRecorder, questionPayload := performAuthRequest(
+		t, router, http.MethodPost, "/api/password-resets/question",
+		`{"display_name":"小明"}`, nil,
+	)
+	if questionRecorder.Code != http.StatusOK {
+		t.Fatalf("question status = %d, body = %s", questionRecorder.Code, questionRecorder.Body.String())
+	}
+	if questionPayload["code"] != codes.PasswordResetQuestion {
+		t.Errorf("question code = %v, want %q", questionPayload["code"], codes.PasswordResetQuestion)
+	}
+	if questionPayload["security_question"] != apiSecurityQuestion {
+		t.Errorf("security_question = %v, want %q", questionPayload["security_question"], apiSecurityQuestion)
+	}
+
+	wrongRecorder, wrongPayload := performAuthRequest(
+		t, router, http.MethodPost, "/api/password-resets",
+		`{"display_name":"小明","security_answer":"wrong","new_password":"`+apiNewPassword+`"}`, nil,
+	)
+	if wrongRecorder.Code != http.StatusBadRequest {
+		t.Errorf("wrong answer status = %d, want %d", wrongRecorder.Code, http.StatusBadRequest)
+	}
+	if wrongPayload["code"] != codes.PasswordResetFailed {
+		t.Errorf("wrong answer code = %v, want %q", wrongPayload["code"], codes.PasswordResetFailed)
+	}
+
+	resetRecorder, resetPayload := performAuthRequest(
+		t, router, http.MethodPost, "/api/password-resets",
+		`{"display_name":"小明","security_answer":" 钠NA ","new_password":"`+apiNewPassword+`"}`, nil,
+	)
+	if resetRecorder.Code != http.StatusOK {
+		t.Fatalf("reset status = %d, body = %s", resetRecorder.Code, resetRecorder.Body.String())
+	}
+	if resetPayload["code"] != codes.PasswordReset {
+		t.Errorf("reset code = %v, want %q", resetPayload["code"], codes.PasswordReset)
+	}
+
+	// 重置成功后后端直接登录；用这个新 Cookie 能取到账号。
+	resetCookie := sessionCookie(t, resetRecorder)
+	meRecorder, mePayload := performAuthRequest(
+		t, router, http.MethodGet, "/api/users/me", "", resetCookie,
+	)
+	if meRecorder.Code != http.StatusOK {
+		t.Errorf("me after reset = %d, want %d", meRecorder.Code, http.StatusOK)
+	}
+	if mePayload["user"].(map[string]any)["display_name"] != "小明" {
+		t.Errorf("me after reset user = %v", mePayload["user"])
+	}
+
+	oldRecorder, _ := performAuthRequest(
+		t, router, http.MethodPost, "/api/sessions",
+		`{"display_name":"小明","password":"`+validPassword+`"}`, nil,
+	)
+	if oldRecorder.Code != http.StatusUnauthorized {
+		t.Errorf("old password after reset = %d, want %d", oldRecorder.Code, http.StatusUnauthorized)
+	}
+	newRecorder, _ := performAuthRequest(
+		t, router, http.MethodPost, "/api/sessions",
+		`{"display_name":"小明","password":"`+apiNewPassword+`"}`, nil,
+	)
+	if newRecorder.Code != http.StatusOK {
+		t.Errorf("new password after reset = %d, want %d", newRecorder.Code, http.StatusOK)
+	}
+}
+
+func TestPasswordResetUnavailableWithoutSecurityQuestion(t *testing.T) {
+	router, _ := newAuthRouter(t)
+	registerUser(t, router, "小明")
+
+	questionRecorder, questionPayload := performAuthRequest(
+		t, router, http.MethodPost, "/api/password-resets/question",
+		`{"display_name":"小明"}`, nil,
+	)
+	if questionRecorder.Code != http.StatusBadRequest {
+		t.Errorf("question status = %d, want %d", questionRecorder.Code, http.StatusBadRequest)
+	}
+	if questionPayload["code"] != codes.PasswordResetUnavailable {
+		t.Errorf("question code = %v, want %q", questionPayload["code"], codes.PasswordResetUnavailable)
+	}
+
+	resetRecorder, resetPayload := performAuthRequest(
+		t, router, http.MethodPost, "/api/password-resets",
+		`{"display_name":"小明","security_answer":"anything","new_password":"`+apiNewPassword+`"}`, nil,
+	)
+	if resetRecorder.Code != http.StatusBadRequest {
+		t.Errorf("reset status = %d, want %d", resetRecorder.Code, http.StatusBadRequest)
+	}
+	if resetPayload["code"] != codes.PasswordResetFailed {
+		t.Errorf("reset code = %v, want %q", resetPayload["code"], codes.PasswordResetFailed)
+	}
+}

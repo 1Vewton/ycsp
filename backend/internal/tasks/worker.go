@@ -25,6 +25,8 @@ func (service *Service) work(ctx context.Context) {
 			return
 		case taskID := <-service.queue:
 			service.runTask(ctx, taskID)
+			// 执行结束（成功、失败或被取消）后才允许补扫再次入队。
+			service.forgetScheduled(taskID)
 		}
 	}
 }

@@ -24,6 +24,13 @@ RULE_RADIUS_RATIO = "rule_radius_ratio"
 RULE_EXPERIMENTAL_OVERRIDE = "rule_experimental_override"
 # 规则与实验不符，采用实验结构（参数 ratio、rule_prototype、rule_coordination_number）
 
+RULE_WURTZITE_EXPERIMENTAL = "rule_wurtzite_experimental"
+# 实验测定为六方纤锌矿型（参数 ratio、coordination_number）
+
+RULE_RUTILE_EXPERIMENTAL = "rule_rutile_experimental"
+# 1:2 化学计量通常推成萤石型，但实验测定为金红石型
+# （参数 ratio、coordination_number、rule_coordination_number）
+
 RULE_FLUORITE_STOICHIOMETRY = "rule_fluorite_stoichiometry"
 # 1:2 化学计量 → 萤石型（参数 ratio、cation_count、anion_count）
 
@@ -48,6 +55,9 @@ CAVEAT_NEAR_BOUNDARY = "caveat_near_boundary"
 
 CAVEAT_CONFIRMED_BY_EXPERIMENT = "caveat_confirmed_by_experiment"
 # 实验数据与规则结论一致
+
+CAVEAT_POLYMORPH = "caveat_polymorph"
+# 同一种物质有多种晶型，这里采用实验测定的这一种
 
 CAVEAT_LOW_IONIC_CHARACTER = "caveat_low_ionic_character"
 # 电负性差偏小，键的共价性明显（参数 difference、threshold）

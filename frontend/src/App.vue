@@ -5,6 +5,7 @@ import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { faCubes } from '@fortawesome/free-solid-svg-icons/faCubes'
 import { faFlask } from '@fortawesome/free-solid-svg-icons/faFlask'
 import { faHouse } from '@fortawesome/free-solid-svg-icons/faHouse'
+import { faListUl } from '@fortawesome/free-solid-svg-icons/faListUl'
 import { faRightFromBracket } from '@fortawesome/free-solid-svg-icons/faRightFromBracket'
 import { faRightToBracket } from '@fortawesome/free-solid-svg-icons/faRightToBracket'
 import { faUser } from '@fortawesome/free-solid-svg-icons/faUser'
@@ -58,6 +59,10 @@ async function leaveAccount(): Promise<void> {
             <FontAwesomeIcon :icon="faFlask" aria-hidden="true" />
             <span>{{ t('nav_predict') }}</span>
           </RouterLink>
+          <RouterLink class="nav-link" to="/history">
+            <FontAwesomeIcon :icon="faListUl" aria-hidden="true" />
+            <span>{{ t('nav_history') }}</span>
+          </RouterLink>
 
           <template v-if="!isRestoringSession">
             <RouterLink
@@ -71,7 +76,7 @@ async function leaveAccount(): Promise<void> {
             <template v-else>
               <RouterLink
                 class="nav-link"
-                :to="{ name: 'login' }"
+                :to="{ name: 'account' }"
                 :aria-label="t('nav_account_label', { name: signedInUser.display_name })"
                 :title="signedInUser.display_name"
               >

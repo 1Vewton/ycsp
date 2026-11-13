@@ -12,12 +12,14 @@ const (
 	TaskOK         = "task_ok"
 	TaskResult     = "task_result"
 	TaskCancelled  = "task_cancelled"
+	TaskHistory    = "task_history"
 )
 
 // 转发数据处理层时的失败。
 const (
 	ComputeUnreachable = "compute_unreachable" // 参数 url
-	ComputeBadStatus   = "compute_bad_status"  // 参数 status_code
+	ComputeTimeout     = "compute_timeout"
+	ComputeBadStatus   = "compute_bad_status" // 参数 status_code
 	ComputeReadFailed  = "compute_read_failed"
 	ComputeInvalidJSON = "compute_invalid_json"
 	ComputeNoResult    = "compute_no_result"
@@ -42,6 +44,18 @@ const (
 	UserNameTaken   = "user_name_taken"
 	UserNameInvalid = "user_name_invalid" // 参数 min_length、max_length
 	PasswordTooWeak = "password_too_weak" // 参数 rules[]、min_length、max_bytes
+
+	PasswordChanged          = "password_changed"
+	PasswordReset            = "password_reset"
+	PasswordResetQuestion    = "password_reset_question"
+	SecurityQuestionUpdated  = "security_question_updated"
+	CurrentPasswordIncorrect = "current_password_incorrect"
+	PasswordUnchanged        = "password_unchanged"
+	SecurityQuestionInvalid  = "security_question_invalid" // 参数 min_length、max_length
+	SecurityAnswerInvalid    = "security_answer_invalid"   // 参数 min_length、max_bytes
+	SecuritySetupIncomplete  = "security_setup_incomplete"
+	PasswordResetUnavailable = "password_reset_unavailable"
+	PasswordResetFailed      = "password_reset_failed"
 
 	InvalidCredentials = "invalid_credentials"
 	NotSignedIn        = "not_signed_in"

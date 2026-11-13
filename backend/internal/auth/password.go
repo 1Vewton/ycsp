@@ -7,6 +7,7 @@ package auth
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -62,4 +63,20 @@ func VerifyPassword(hashedPassword string, plainPassword string) bool {
 
 	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(plainPassword))
 	return err == nil
+}
+
+// NormalizeSecurityAnswer 统一安全问题的答案：去掉首尾空格并转小写。
+// 学生用中文或英文回答时不必纠结大小写与多余空格。
+func NormalizeSecurityAnswer(answer string) string {
+	return strings.ToLower(strings.TrimSpace(answer))
+}
+
+// HashSecurityAnswer 把安全问题的答案变成 bcrypt 哈希；答案同样从不存明文。
+func HashSecurityAnswer(answer string) (string, error) {
+	return HashPassword(NormalizeSecurityAnswer(answer))
+}
+
+// VerifySecurityAnswer 校验答案与哈希是否匹配；哈希为空时一律返回 false。
+func VerifySecurityAnswer(hashedAnswer string, answer string) bool {
+	return VerifyPassword(hashedAnswer, NormalizeSecurityAnswer(answer))
 }

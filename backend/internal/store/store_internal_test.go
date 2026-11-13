@@ -1,6 +1,47 @@
 package store
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
+
+func TestConnectionPoolSettings(t *testing.T) {
+	sqlite := connectionPoolSettings(Settings{
+		Driver:          DriverSQLite,
+		MaxOpenConns:    10,
+		MaxIdleConns:    10,
+		ConnMaxLifetime: time.Hour,
+	})
+	if sqlite.maxOpen != 1 || sqlite.maxIdle != 1 || sqlite.maxLifetime != 0 {
+		t.Errorf("sqlite pool = %+v, want single connection without lifetime", sqlite)
+	}
+
+	postgresDefaults := connectionPoolSettings(Settings{Driver: DriverPostgres})
+	if postgresDefaults.maxOpen != defaultServerMaxOpenConnections ||
+		postgresDefaults.maxIdle != defaultServerMaxIdleConnections ||
+		postgresDefaults.maxLifetime != defaultServerConnectionMaxLifetime {
+		t.Errorf("postgres defaults = %+v", postgresDefaults)
+	}
+
+	custom := connectionPoolSettings(Settings{
+		Driver:          DriverPostgres,
+		MaxOpenConns:    30,
+		MaxIdleConns:    15,
+		ConnMaxLifetime: 10 * time.Minute,
+	})
+	if custom.maxOpen != 30 || custom.maxIdle != 15 || custom.maxLifetime != 10*time.Minute {
+		t.Errorf("custom pool = %+v", custom)
+	}
+
+	clamped := connectionPoolSettings(Settings{
+		Driver:       DriverPostgres,
+		MaxOpenConns: 2,
+		MaxIdleConns: 10,
+	})
+	if clamped.maxIdle != 2 {
+		t.Errorf("clamped max idle = %d, want 2", clamped.maxIdle)
+	}
+}
 
 func TestWithSQLiteForeignKeysAddsThePragma(t *testing.T) {
 	testCases := []struct {
