@@ -103,6 +103,7 @@ docker compose down -v     # 连同 Postgres、Redis 和依赖卷一起删除
 | `frontend/` | 前端 | [README](./frontend/README.zh-CN.md) |
 | `backend/` | 数据管理 | [README](./backend/README.zh-CN.md) |
 | `compute/` | 数据处理 | [README](./compute/README.zh-CN.md) |
+| `slides/` | 演示文稿 | [README](./slides/README.zh-CN.md) |
 | `docker-compose.yml` | 开发环境 | 见上方《Docker Compose（开发）》 |
 
 CI 配置见 [`.github/README-workflow.zh-CN.md`](./.github/README-workflow.zh-CN.md)，开发计划见 [TASKS.md](./TASKS.md)。

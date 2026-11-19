@@ -102,6 +102,7 @@ Notes:
 | `frontend/` | Frontend | [README](./frontend/README.md) |
 | `backend/` | Data management | [README](./backend/README.md) |
 | `compute/` | Data processing | [README](./compute/README.md) |
+| `slides/` | Presentation | [README](./slides/README.md) |
 | `docker-compose.yml` | Development stack | See "Docker Compose (development)" above |
 
 CI configuration is documented in [`.github/README-workflow.md`](./.github/README-workflow.md); the development plan is in [TASKS.md](./TASKS.md) (Chinese).
