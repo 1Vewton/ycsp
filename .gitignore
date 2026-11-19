@@ -30,6 +30,7 @@ dist/
 *.test
 *.out
 /backend/bin/
+/backend/tmp/
 
 # 本地数据库（backend 默认用 SQLite 文件）
 *.db

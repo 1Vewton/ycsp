@@ -112,7 +112,7 @@
 
 - [x] **4.1** 在真实数据上跑通“输入 → 计算 → 存储 → 展示”完整流程
 - [x] **4.2** 处理并发与超时（多人同时用、计算卡住时给出中文提示）
-- [ ] **4.3** 跨层错误传播测试：Python 报错，前端要显示中文解释
+- [x] **4.3** 跨层错误传播测试：Python 报错，前端要显示中文解释
 - [ ] **4.4** 用课本经典例子做端到端回归测试
 
 ## 阶段 5：教学化打磨与验收
@@ -186,3 +186,5 @@
 | 2026-11-09 | 3 | 三维渲染从 3Dmol 换成 Three.js：新增 `structureScene.ts`（纯几何）与 `structureRenderer.ts`（按需加载的球棍 / 晶胞 / 取景 / 资源释放），删除 CIF 转换与 3Dmol 依赖；新增 `check-csp` 脚本扫描构建产物中的 eval / Function 构造器 | frontend 123 个用例、type-check、build、check-csp 通过；主包约 292 kB（gzip 90.85 kB），Three.js chunk 约 563 kB（gzip 139.39 kB）；产物 0 处 eval / new Function |
 | 2026-11-09 | 4 | 完成 4.2：并发与超时——新增 compute_timeout，超时不再误报为连不上；compute 客户端支持可配置超时（默认 10 秒）；补超时（含响应体卡住）与 80 条并发创建回归测试；前端补 compute_timeout 中英文案与结果页提示测试；CI 增加 go test -race | backend go test ./... 与 go test -race ./... 全通过；frontend 124 个用例、type-check、check-codes 通过（68 code / 255 文案）；超时任务约 0.07 秒落成 failed / compute_timeout，80 条并发任务全部成功 |
 | 2026-11-12 | 2 | 把 SQLite 降为开发/测试驱动，生产改为一等公民 PostgreSQL：`YCSP_ENV=production` 拒绝 SQLite；连接池按驱动配置并启动 Ping；新增 `YCSP_DB_AUTO_MIGRATE`、`go run . -migrate-only` 与启动前 `EnsureSchema` 表校验；任务 worker 可配置（默认 SQLite 1、服务端库 4，范围 1~16）；测试辅助支持 Postgres 独立 schema，CI backend job 增加 Postgres service 与整套测试 | 新增连接池/配置/worker 并发/表校验测试；SQLite `go test ./...` 与 `go test -race ./...` 全通过；本地临时 Postgres 16 容器上 `go test ./...` 全通过（`store` / `tasks` / `api` / `users` 均跑真实 Postgres），并修掉并行测试 schema 重名问题（schema 名加入进程号） |
+| 2026-11-13 | — | 新增开发用 Docker Compose：Postgres + Redis + compute/backend/frontend 五个服务；源码 bind mount，Vite HMR、uvicorn reload、Air 热重载；backend 用容器内 Postgres，健康检查串联启动顺序；补充中英根 README 与各层 Docker 说明、`.dockerignore` 与 Air 配置 | `docker compose config` 通过；三个 Dockerfile `docker build --check` 均无警告；本机 Docker Hub 基础镜像拉取受 referrers/网络问题阻塞，未完成镜像构建运行；Redis 宿主端口改为 6380 以避开本地 6379 |
+| 2026-11-14 | 4 | 完成 4.3：跨层错误传播测试——新增 `backend/integration`（`integration` 构建标签），启动真实 Python compute 与 Go 任务服务，验证 `NaCl2` / `Xx2` / `H2O` 的错误码与 `params` 原样落到任务；断言 `frontend/src/locales/zh.ts` / `en.ts` 有对应 key 和中文文案；`ResultView.test.ts` 增加 `formula_charge_unbalanced` 中文提示用例；CI 增加独立 cross-layer job | `go test -tags=integration ./integration/...` 三个子用例全通过（真实 compute）；backend `go test ./...` 全通过；frontend 125 个用例、type-check、check-codes 通过 |

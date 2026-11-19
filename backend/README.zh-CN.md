@@ -261,6 +261,10 @@ proxy_set_header X-Request-ID $ycsp_request_id;
 - **记录范围**：只记方法、路径、状态码、耗时与预测摘要；不记请求体、密码与 Cookie。
 - **防日志注入**：编号最长 64 个字符，只允许字母、数字与 `-_.:`；含换行等字符的编号会被替换。
 
+## Docker（开发）
+
+`Dockerfile` 基于 Go 1.25，安装 Air 做热重载；Compose 把源码挂进容器，并连接 Postgres / Redis。启动方式与端口见根 README《Docker Compose（开发）》。
+
 ## 如何运行
 
 ```powershell
@@ -278,6 +282,7 @@ go run .
 - 部署在 nginx 后面时配置 `YCSP_TRUSTED_PROXIES`，否则登录限流会按 nginx 的 IP 统计（见《反向代理部署（nginx）》）。
 - 测试：`go test ./...`；加 `-cover` 看覆盖率，加 `-race` 检查并发创建与超时路径（当前 `env` 100%、`store` 92.9%、`auth` 91.4%、`session` 84.1%、
   `api` 84.0%、`traceid` 90%，任务与账号包在 74%~85%；只有启动入口 `main()` 不测，因为它会真的占用端口）。
+- 跨层错误传播测试：[`integration/`](./integration/README.zh-CN.md)。先启动数据处理层，设置 `YCSP_TEST_COMPUTE_URL`，再跑 `go test -tags=integration ./integration/...`；验证 Python 的错误码和参数能落到 Go 任务上，并确认前端语言包有中文文案。
 - 想在本机验证 Postgres：准备一个测试库，然后设
   `YCSP_TEST_DB_DRIVER=postgres` 和 `YCSP_TEST_DB_DSN=...` 再跑 `go test ./...`；
   每个测试会自动建独立 schema 并在结束时删除。CI 的 backend job 已包含一次 Postgres 跑测。

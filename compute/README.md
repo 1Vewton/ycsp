@@ -93,6 +93,10 @@ This stage uses only the standard library `math`; NumPy will be introduced when 
 | `app/` | Service code, see [app/README.md](./app/README.md) |
 | `tests/` | Unit tests (classic textbook examples), see [tests/README.md](./tests/README.md) |
 
+## Docker (development)
+
+`Dockerfile` installs dependencies with uv and runs `uvicorn --reload`; Compose bind-mounts the source, so changes under `app/` reload automatically. See "Docker Compose (development)" in the root README for commands and ports.
+
 ## How to run
 
 Dependencies are managed with [uv](https://docs.astral.sh/uv/) (versions are locked in `uv.lock`; the first run creates `.venv` automatically).

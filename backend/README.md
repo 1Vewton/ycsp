@@ -255,6 +255,10 @@ All three layers use `X-Request-ID` to tie one request together:
 - **What is logged**: only method, path, status code, duration, and prediction summary; request bodies, passwords, and cookies are never logged.
 - **Log-injection protection**: IDs are at most 64 characters and may contain only letters, digits, and `-_.:`; IDs containing newlines or other characters are replaced.
 
+## Docker (development)
+
+`Dockerfile` is based on Go 1.25 and installs Air for hot reload; Compose bind-mounts the source and connects it to PostgreSQL / Redis. See "Docker Compose (development)" in the root README for commands and ports.
+
 ## How to run
 
 ```powershell
@@ -272,6 +276,7 @@ Then open <http://127.0.0.1:8000/api/health>.
 - Behind nginx, configure `YCSP_TRUSTED_PROXIES`; otherwise login rate limiting counts nginx's IP (see \"Reverse proxy deployment (nginx)\").
 - Tests: `go test ./...`; add `-cover` for coverage and `-race` for the concurrent task creation / timeout paths (currently `env` 100%, `store` 92.9%, `auth` 91.4%, `session` 84.1%,
   `api` 84.0%, `traceid` 90%; the tasks and users packages are 74%–85%. Only the startup entry `main()` is not tested, because it would really bind the port).
+- Cross-layer error propagation test: [`integration/`](./integration/README.md). Start the data processing layer, set `YCSP_TEST_COMPUTE_URL`, then run `go test -tags=integration ./integration/...`. It verifies that Python error codes/params reach the Go task and that the frontend language packs have Chinese copy.
 - To verify PostgreSQL locally, prepare a test database, set
   `YCSP_TEST_DB_DRIVER=postgres` and `YCSP_TEST_DB_DSN=...`, then run `go test ./...`;
   each test creates its own schema and drops it afterwards. The backend CI job already runs the suite once against PostgreSQL.

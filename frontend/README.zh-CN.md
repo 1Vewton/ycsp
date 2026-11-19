@@ -36,6 +36,10 @@ Copy-Item .env.example .env
 
 错误码文案检查脚本在 `scripts/`，见 [scripts/README.zh-CN.md](./scripts/README.zh-CN.md)。
 
+## Docker（开发）
+
+`Dockerfile` 用 Node 22 安装依赖，容器内运行 `npm run dev`；Vite 的 `/api` 代理指向 Compose 里的 `backend` 服务。启动方式与端口见根 README《Docker Compose（开发）》。
+
 ## 页面结构
 
 七个页面用 vue-router 的 hash 模式（地址形如 `/#/predict`）：直接打开或刷新任何页面都不会 404，

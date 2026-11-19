@@ -32,7 +32,7 @@ Configuration: [`../vitest.config.ts`](../vitest.config.ts).
 | `App.test.ts` | Header sign-in state: sign-in entry, display name and sign-out, sign-out failure message |
 | `FormulaInput.test.ts` | Input component's three feedback levels, v-model, and accessibility attributes |
 | `structureExplanationComponent.test.ts` | Result explanation component: rule / caveats from the backend, caveat hiding rule |
-| `ResultView.test.ts` | Result page state machine: polling, failure, timeout copy, cancel, retry, structure result failing separately |
+| `ResultView.test.ts` | Result page state machine: polling, failure, timeout copy, cancel, retry, structure result failing separately; includes the Chinese copy for the Python `formula_charge_unbalanced` code |
 
 `fixtures.ts` holds shared samples (NaCl structure and task snapshot); it is not a test file.
 

@@ -94,6 +94,41 @@ jobs:
       - name: Test with the race detector
         run: go test -race ./...
 
+  integration:
+    name: cross-layer (Python -> Go -> locale)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+
+      - name: Install compute dependencies
+        working-directory: compute
+        run: uv sync --frozen
+
+      - name: Test Python errors through Go and frontend copy
+        working-directory: backend
+        run: |
+          (cd ../compute && uv run uvicorn app.main:app --host 127.0.0.1 --port 8001 --log-level warning) &
+          compute_pid=$!
+          trap 'kill "$compute_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8001/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          YCSP_TEST_COMPUTE_URL=http://127.0.0.1:8001 go test -count=1 -tags=integration ./integration/...
+
   frontend:
     name: frontend (Node)
     runs-on: ubuntu-latest

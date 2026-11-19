@@ -100,6 +100,10 @@ POST /predict
 | `app/` | 服务代码，见 [app/README.zh-CN.md](./app/README.zh-CN.md) |
 | `tests/` | 单元测试（课本经典例子），见 [tests/README.zh-CN.md](./tests/README.zh-CN.md) |
 
+## Docker（开发）
+
+`Dockerfile` 用 uv 安装依赖，容器内运行 `uvicorn --reload`；Compose 把源码挂进容器，改动 `app/` 会自动重载。启动方式与端口见根 README《Docker Compose（开发）》。
+
 ## 如何运行
 
 依赖用 [uv](https://docs.astral.sh/uv/) 管理（版本锁在 `uv.lock`，首次运行自动建好 `.venv`）。

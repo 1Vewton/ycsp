@@ -36,6 +36,10 @@ Automated tests live in `tests/` and use Vitest + jsdom; they do not need a runn
 
 The error-code copy check script lives in `scripts/`; see [scripts/README.md](./scripts/README.md).
 
+## Docker (development)
+
+`Dockerfile` installs dependencies with Node 22 and runs `npm run dev`; Vite's `/api` proxy points at the `backend` service in Compose. See "Docker Compose (development)" in the root README for commands and ports.
+
 ## Pages
 
 The seven pages use vue-router's hash mode (addresses look like `/#/predict`): opening or refreshing any page never returns 404, and deployment needs no "fall back to index.html" rule. Routes are registered in `src/router.ts`.

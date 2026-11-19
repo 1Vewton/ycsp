@@ -32,7 +32,7 @@ npm run test:watch  # 监听文件变化，边改边跑
 | `App.test.ts` | 顶栏登录状态：登录入口、昵称与退出、退出失败提示 |
 | `FormulaInput.test.ts` | 输入组件的三档反馈、v-model 与无障碍属性 |
 | `structureExplanationComponent.test.ts` | 结果解释组件：来自后端的 rule / caveats、注意事项隐藏规则 |
-| `ResultView.test.ts` | 结果页状态机：轮询、失败、超时提示、取消、重试、结构结果单独失败 |
+| `ResultView.test.ts` | 结果页状态机：轮询、失败、超时提示、取消、重试、结构结果单独失败；含 Python 返回的 `formula_charge_unbalanced` 中文提示 |
 
 `fixtures.ts` 是共用样例（NaCl 结构与任务快照），不是测试文件。
 

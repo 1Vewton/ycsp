@@ -17,6 +17,7 @@
 | --- | --- |
 | compute | `uv sync --frozen`（锁文件与 `pyproject.toml` 一致）+ 能否 `import app.main` + `uv run pytest --cov=app`（覆盖率低于 90% 失败） |
 | backend | `gofmt` 无差异、`go vet`、`go build`、`go test -cover ./...`（SQLite）、再对 PostgreSQL 服务跑一次 `go test ./...`、`go test -race ./...`（并发创建与超时路径） |
+| integration | 用 uv 启动真实 Python compute，再跑 `go test -tags=integration ./integration/...`：Python 错误必须落到 Go 任务上，且前端语言包有中文文案 |
 | frontend | `npm ci`、`npm run check-codes`（后端每个 code 都有中英文案）、`npm run test`（Vitest + jsdom）、`npm run type-check`、`npm run build`、`npm run check-csp`（构建产物不含 `eval` / `Function` 构造器，严格 CSP 可用） |
 
 ## 本地对齐 CI
@@ -37,6 +38,19 @@ go test -count=1 ./...
 ```
 
 每个测试会建独立 schema 并在结束时删除，所以测试库不需要在两次运行之间清空。
+
+跨层测试要先启动真实 compute：
+
+```powershell
+# 终端 1
+cd compute
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8001
+
+# 终端 2
+cd backend
+$env:YCSP_TEST_COMPUTE_URL="http://127.0.0.1:8001"
+go test -tags=integration ./integration/...
+```
 
 > CI 环境没有 `.env`，三层都使用代码里的默认值——这也顺带保证了「默认值能跑通」。
 

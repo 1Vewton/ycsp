@@ -17,6 +17,7 @@ CI configuration: every push / PR automatically checks that all three layers can
 | --- | --- |
 | compute | `uv sync --frozen` (lock file matches `pyproject.toml`) + `import app.main` works + `uv run pytest --cov=app` (fails below 90% coverage) |
 | backend | no `gofmt` diff, `go vet`, `go build`, `go test -cover ./...` (SQLite), a second `go test ./...` against a PostgreSQL service, `go test -race ./...` (concurrent task creation and timeout paths) |
+| integration | starts the real Python compute service with uv, then runs `go test -tags=integration ./integration/...`: Python errors must reach the Go task and the frontend language packs must contain Chinese copy |
 | frontend | `npm ci`, `npm run check-codes` (every backend code has Chinese and English copy), `npm run test` (Vitest + jsdom), `npm run type-check`, `npm run build`, `npm run check-csp` (the built bundle contains no `eval` / `Function` constructor, so strict CSP works) |
 
 ## Aligning locally with CI
@@ -37,6 +38,19 @@ go test -count=1 ./...
 ```
 
 Each test creates its own schema and drops it afterwards, so the test database does not need to be empty between runs.
+
+The cross-layer test starts with the real compute service:
+
+```powershell
+# terminal 1
+cd compute
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8001
+
+# terminal 2
+cd backend
+$env:YCSP_TEST_COMPUTE_URL="http://127.0.0.1:8001"
+go test -tags=integration ./integration/...
+```
 
 > CI has no `.env`, so all three layers use the defaults in code — this also guarantees that "the defaults work".
 

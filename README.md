@@ -61,6 +61,40 @@ Open <http://localhost:5173/> and click "Check background services" on the home 
 > Without a local Redis, set `YCSP_SESSION_DRIVER=memory` in `backend/.env` to run registration and login
 > (sessions live only in process memory and are lost after a restart).
 
+## Docker Compose (development)
+
+Requires Docker Desktop, or Docker Engine with Compose v2. This is a development stack: the source is bind-mounted into the containers, so Vite, uvicorn and Air hot-reload; PostgreSQL runs in a container, and the host does not need Go / Node / uv / Redis.
+
+```powershell
+docker compose up --build
+```
+
+The first build downloads Go / Python / npm dependencies; later starts are faster. Open <http://localhost:5173/> and click "Check background services".
+
+| Service | Address | Notes |
+| --- | --- | --- |
+| `frontend` | <http://localhost:5173> | Vite dev server |
+| `backend` | <http://localhost:8000> | Go API |
+| `compute` | <http://localhost:8001> | FastAPI; API docs at `/docs` |
+| `postgres` | `127.0.0.1:5432` | Development user/password `ycsp` / `ycsp`, database `ycsp` |
+| `redis` | `127.0.0.1:6380` | Login sessions (still 6379 inside the container; the host port avoids a local Redis) |
+
+Common commands:
+
+```powershell
+docker compose logs -f backend
+docker compose logs -f compute
+docker compose down        # keep the database and dependency volumes
+docker compose down -v     # also delete PostgreSQL, Redis and dependency volumes
+```
+
+Notes:
+
+- This Compose stack uses PostgreSQL, not SQLite, so development exercises the production database path.
+- The credentials and ports are for local development only; do not use them in production.
+- After changing `go.mod` / `uv.lock` / `package.json`, the dependency volumes may be stale: run `docker compose down -v`, then `docker compose up --build`.
+- If a host port is already in use, change the left-hand side of the corresponding `ports` entry in `docker-compose.yml`.
+
 ## Repository layout
 
 | Directory | Layer | Documentation |
@@ -68,5 +102,6 @@ Open <http://localhost:5173/> and click "Check background services" on the home 
 | `frontend/` | Frontend | [README](./frontend/README.md) |
 | `backend/` | Data management | [README](./backend/README.md) |
 | `compute/` | Data processing | [README](./compute/README.md) |
+| `docker-compose.yml` | Development stack | See "Docker Compose (development)" above |
 
 CI configuration is documented in [`.github/README-workflow.md`](./.github/README-workflow.md); the development plan is in [TASKS.md](./TASKS.md) (Chinese).

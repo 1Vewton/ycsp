@@ -1,0 +1,121 @@
+name: ycsp-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ycsp
+      POSTGRES_PASSWORD: ycsp
+      POSTGRES_DB: ycsp
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ycsp -d ycsp"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  compute:
+    build:
+      context: ./compute
+    init: true
+    environment:
+      YCSP_COMPUTE_HOST: 0.0.0.0
+      YCSP_COMPUTE_PORT: "8001"
+      # Docker Desktop 的 bind mount 不一定能收到文件事件，强制轮询才能热重载。
+      WATCHFILES_FORCE_POLLING: "true"
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./compute:/app
+      - compute_venv:/app/.venv
+      - uv_cache:/root/.cache/uv
+    command: >
+      sh -c "uv sync --frozen &&
+      exec uv run uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=2)"
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+
+  backend:
+    build:
+      context: ./backend
+    init: true
+    environment:
+      YCSP_ENV: development
+      YCSP_BACKEND_HOST: 0.0.0.0
+      YCSP_BACKEND_PORT: "8000"
+      YCSP_COMPUTE_BASE_URL: http://compute:8001
+      YCSP_DB_DRIVER: postgres
+      YCSP_DB_DSN: host=postgres port=5432 user=ycsp password=ycsp dbname=ycsp sslmode=disable
+      YCSP_DB_AUTO_MIGRATE: "true"
+      YCSP_TASK_WORKERS: "4"
+      YCSP_SESSION_DRIVER: redis
+      YCSP_REDIS_URL: redis://redis:6379/0
+      YCSP_COOKIE_SECURE: "false"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - go_mod_cache:/go/pkg/mod
+      - go_build_cache:/root/.cache/go-build
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      compute:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+    init: true
+    environment:
+      VITE_FRONTEND_PORT: "5173"
+      VITE_BACKEND_BASE_URL: http://backend:8000
+      # Vite 在 Docker Desktop 的 bind mount 上同样可能收不到文件事件。
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  compute_venv:
+  uv_cache:
+  go_mod_cache:
+  go_build_cache:
+  frontend_node_modules:

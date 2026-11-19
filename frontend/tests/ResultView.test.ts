@@ -111,6 +111,26 @@ describe('ResultView', () => {
     expect(wrapper.find('.task-steps').exists()).toBe(false)
   })
 
+  it('显示 Python 返回的 formula_charge_unbalanced 中文解释', async () => {
+    fetchTaskMock.mockResolvedValueOnce(
+      taskSnapshot('failed', {
+        error: {
+          code: 'formula_charge_unbalanced',
+          params: { formula: 'NaCl2' },
+        },
+        duration_ms: 12,
+      }),
+    )
+
+    const wrapper = await mountResultView()
+
+    const alert = wrapper.find('[role="alert"]').text()
+    expect(alert).toContain(
+      tCode('formula_charge_unbalanced', { formula: 'NaCl2' }),
+    )
+    expect(alert).not.toContain('formula_charge_unbalanced')
+  })
+
   it('计算超时时显示“等太久”的提示，而不是内部 code', async () => {
     fetchTaskMock.mockResolvedValueOnce(
       taskSnapshot('failed', {
